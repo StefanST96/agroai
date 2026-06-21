@@ -1,0 +1,25 @@
+{
+  "name": "agroai-v1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "prisma:generate": "prisma generate",
+    "db:seed": "node prisma/seed.js",
+    "db:migrate": "prisma migrate dev --name init"
+  },
+  "dependencies": {
+    "@prisma/client": "5.14.0",
+    "bcryptjs": "2.4.3",
+    "next": "15",
+    "react": "19",
+    "react-dom": "19"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.6",
+    "@types/react": "19.2.17",
+    "prisma": "5.14.0",
+    "typescript": "5.8.2"
+  }
+}
