@@ -11,7 +11,7 @@ export default function LogoutButton() {
   }
 
   return (
-    <button className="button secondary" type="button" onClick={handleLogout}>
+    <button className="icon-button logout-mini" type="button" onClick={handleLogout} aria-label="Odjavi se">
       Odjavi se
     </button>
   );

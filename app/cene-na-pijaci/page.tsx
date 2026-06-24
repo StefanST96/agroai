@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getMarketPrices } from "@/lib/db";
+import { formatPriceDin, formatPriceSource } from "@/lib/market";
+import MarketPriceForm from "../components/MarketPriceForm";
 
 async function getMarketPricesData() {
   return getMarketPrices();
@@ -39,9 +41,9 @@ export default async function MarketPricesPage() {
                   {price.market?.name} · {price.market?.city}
                 </td>
                 <td>
-                  {price.price.toString()} {price.unit?.toLowerCase()}
+                  {formatPriceDin(price.price.toString())} / {price.unit?.toLowerCase()}
                 </td>
-                <td>{price.source ?? "User submitted"}</td>
+                <td>{formatPriceSource(price.source)}</td>
               </tr>
             ))}
           </tbody>
@@ -50,34 +52,7 @@ export default async function MarketPricesPage() {
 
       <section className="panel" style={{ marginTop: 16 }}>
         <h2>Prijavi cenu</h2>
-        <form className="form">
-          <div className="grid two-cols">
-            <label className="field">
-              <span>Proizvod</span>
-              <input placeholder="Kupina" />
-            </label>
-            <label className="field">
-              <span>Pijaca</span>
-              <input placeholder="Valjevo" />
-            </label>
-            <label className="field">
-              <span>Cena</span>
-              <input placeholder="380" type="number" />
-            </label>
-            <label className="field">
-              <span>Jedinica</span>
-              <select defaultValue="KG">
-                <option value="KG">kg</option>
-                <option value="T">t</option>
-                <option value="L">l</option>
-                <option value="PIECE">komad</option>
-              </select>
-            </label>
-          </div>
-          <button className="button" type="button">
-            Sacuvaj cenu
-          </button>
-        </form>
+        <MarketPriceForm />
       </section>
     </main>
   );

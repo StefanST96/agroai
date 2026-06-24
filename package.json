@@ -7,11 +7,14 @@
     "start": "next start",
     "prisma:generate": "prisma generate",
     "db:seed": "node prisma/seed.js",
-    "db:migrate": "prisma migrate dev --name init"
+    "db:migrate": "prisma migrate dev --name init",
+    "db:migrate:legacy-media": "node scripts/migrate-legacy-media-to-db.mjs"
   },
   "dependencies": {
     "@prisma/client": "5.14.0",
     "bcryptjs": "2.4.3",
+    "dotenv": "^17.4.2",
+    "mysql2": "^3.22.5",
     "next": "15",
     "react": "19",
     "react-dom": "19"

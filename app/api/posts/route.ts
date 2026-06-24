@@ -9,7 +9,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const { title, content, category, imageUrl } = body;
+  const { title, content, category, imageUrl, imageAssetId, videoAssetId } = body;
 
   if (!title || !content) {
     return NextResponse.json({ error: "Title and content are required." }, { status: 400 });
@@ -25,6 +25,8 @@ export async function POST(request: Request) {
     content,
     category: category || undefined,
     imageUrl,
+    imageAssetId: typeof imageAssetId === "number" ? imageAssetId : undefined,
+    videoAssetId: typeof videoAssetId === "number" ? videoAssetId : undefined,
     authorId: currentUser.id,
   });
 

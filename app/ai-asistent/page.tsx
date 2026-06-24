@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getCurrentUser, getLatestAiConversation } from "@/lib/db";
+import { getCurrentUser, getLatestAiConversationByUser } from "@/lib/db";
+import AiChatPanel from "../components/AiChatPanel";
 
 const aiSuggestions = [
   "Kako da zastitim malinu posle kise?",
@@ -29,7 +30,7 @@ async function getAiData() {
   if (!profile) {
     redirect("/login");
   }
-  const conversation = await getLatestAiConversation();
+  const conversation = await getLatestAiConversationByUser(profile.id);
 
   return { profile, conversation };
 }
@@ -62,35 +63,10 @@ export default async function AiAssistantPage() {
               <p className="muted">Online · odgovor za nekoliko sekundi</p>
             </div>
           </div>
-
-          <div className="message-list">
-            {messages.map((message, index) => (
-              <div className={`message ${message.role}`} key={`${message.role}-${index}`}>
-                <p>{message.content}</p>
-              </div>
-            ))}
-          </div>
-
-          <form className="ai-input">
-            <input placeholder="Npr. Sta da radim ako list maline zuti posle kise?" />
-            <button className="button" type="button">
-              Posalji
-            </button>
-          </form>
+          <AiChatPanel initialMessages={messages} suggestions={aiSuggestions} />
         </div>
 
         <aside className="ai-side grid">
-          <section className="panel">
-            <h2>Brza pitanja</h2>
-            <div className="suggestion-list">
-              {aiSuggestions.map((suggestion) => (
-                <button type="button" key={suggestion}>
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          </section>
-
           <section className="panel">
             <h2>Analiza slika</h2>
             <p className="muted">

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "AgroAI V1",
+  title: "AgroAI",
   description: "Zajednica, pijacne cene i subvencije za poljoprivrednike.",
 };
 

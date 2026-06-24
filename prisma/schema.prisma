@@ -29,6 +29,28 @@ model User {
   plantUploads    PlantImageUpload[]
   posts           Post[]
   sessions        Session[]
+  mediaAssets     MediaAsset[]
+  profile         UserProfile?
+  createdBanners  SidebarBanner[]      @relation("BannerCreator")
+  submittedReports ContentReport[]     @relation("ReportReporter")
+  reportsAgainst  ContentReport[]      @relation("ReportTargetUser")
+  resolvedReports ContentReport[]      @relation("ReportResolver")
+  dismissedNotifications DismissedNotification[]
+  weekendActivities WeekendActivity[]
+}
+
+model UserProfile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  displayName String?
+  location    String?
+  farmName    String?
+  bio         String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
 }
 
 model Session {
@@ -49,15 +71,22 @@ model Post {
   content   String       @db.Text
   category  PostCategory @default(GENERAL)
   imageUrl  String?
+  imageAssetId Int?
+  videoAssetId Int?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   comments  Comment[]
   likes     Like[]
   author    User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  imageAsset MediaAsset? @relation("PostImage", fields: [imageAssetId], references: [id], onDelete: SetNull)
+  videoAsset MediaAsset? @relation("PostVideo", fields: [videoAssetId], references: [id], onDelete: SetNull)
+  reports    ContentReport[]
 
   @@index([authorId])
   @@index([category])
   @@index([createdAt])
+  @@index([imageAssetId])
+  @@index([videoAssetId])
 }
 
 model Comment {
@@ -178,15 +207,97 @@ model AiMessage {
 model PlantImageUpload {
   id        Int               @id @default(autoincrement())
   userId    Int?
-  imageUrl  String
+  imageUrl  String?
+  imageAssetId Int?
   crop      String?
   notes     String?
   createdAt DateTime          @default(now())
   analyses  DiseaseAnalysis[]
   user      User?             @relation(fields: [userId], references: [id])
+  imageAsset MediaAsset?      @relation(fields: [imageAssetId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([createdAt])
+  @@index([imageAssetId])
+}
+
+model MediaAsset {
+  id          Int        @id @default(autoincrement())
+  userId      Int?
+  kind        MediaKind
+  filename    String?
+  mimeType    String
+  size        Int
+  data        Bytes      @db.LongBlob
+  createdAt   DateTime   @default(now())
+  user        User?      @relation(fields: [userId], references: [id])
+  postImages  Post[]     @relation("PostImage")
+  postVideos  Post[]     @relation("PostVideo")
+  plantImages PlantImageUpload[]
+  banners     SidebarBanner[]
+  weekendActivityImages WeekendActivity[] @relation("WeekendActivityImage")
+
+  @@index([userId])
+  @@index([kind])
+  @@index([createdAt])
+}
+
+model SidebarBanner {
+  id           Int           @id @default(autoincrement())
+  title        String
+  body         String?       @db.Text
+  ctaText      String?
+  ctaHref      String?
+  imageUrl     String?
+  imageAssetId Int?
+  variant      BannerVariant @default(CARD)
+  position     Int           @default(0)
+  isActive     Boolean       @default(true)
+  createdById  Int?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  createdBy    User?         @relation("BannerCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  imageAsset   MediaAsset?   @relation(fields: [imageAssetId], references: [id], onDelete: SetNull)
+
+  @@index([isActive, position])
+  @@index([createdById])
+  @@index([imageAssetId])
+}
+
+model ContentReport {
+  id             Int              @id @default(autoincrement())
+  targetType     ReportTargetType
+  reporterId     Int
+  reportedUserId Int?
+  postId         Int?
+  reason         String
+  details        String?          @db.Text
+  status         ReportStatus     @default(OPEN)
+  resolvedById   Int?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  reporter       User             @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser   User?            @relation("ReportTargetUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  post           Post?            @relation(fields: [postId], references: [id], onDelete: SetNull)
+  resolvedBy     User?            @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([targetType, status])
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@index([postId])
+  @@index([createdAt])
+}
+
+model DismissedNotification {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  notificationKey  String
+  dismissedAt      DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationKey])
+  @@index([userId])
+  @@index([dismissedAt])
 }
 
 model DiseaseAnalysis {
@@ -206,6 +317,42 @@ model DiseaseAnalysis {
 
   @@index([userId])
   @@index([uploadId])
+  @@index([createdAt])
+}
+
+model WeekendActivity {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?  @db.Text
+  city        String
+  location    String?
+  category    String?
+  imageUrl    String?
+  imageAssetId Int?
+  startAt     DateTime
+  endAt       DateTime?
+  createdById Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  imageAsset  MediaAsset? @relation("WeekendActivityImage", fields: [imageAssetId], references: [id], onDelete: SetNull)
+
+  @@index([startAt])
+  @@index([city])
+  @@index([createdById])
+  @@index([imageAssetId])
+}
+
+model Partner {
+  id          Int      @id @default(autoincrement())
+  name        String
+  category    String
+  description String   @db.Text
+  logoUrl     String?
+  website     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   @@index([createdAt])
 }
 
@@ -248,4 +395,26 @@ enum AnalysisStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+}
+
+enum BannerVariant {
+  CARD
+  HERO
+}
+
+enum ReportTargetType {
+  POST
+  PROFILE
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  RESOLVED
+  REJECTED
 }
