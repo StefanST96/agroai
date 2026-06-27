@@ -8,9 +8,12 @@ import ProfileNavMenu from "./components/ProfileNavMenu";
 import ZoomableProfileImage from "./components/ZoomableProfileImage";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getActivityCities, getCurrentUser, getFeedPosts, getMarketPriceHighlights, getPlatformStats, getSidebarBanners, getWeekendActivities } from "@/lib/db";
+import { getActivityCities, getCurrentUser, getFeedPosts, getMarketPriceHighlights, getPartners, getPlatformStats, getProperties, getSidebarBanners, getWeekendActivities } from "@/lib/db";
 import { formatDeltaValue, formatPriceDin, getProductIcon } from "@/lib/market";
 import avatarImg from "../public/avatars/avatar.png";
+import SearchBox from "./components/SearchBox";
+import Icon, { type IconName } from "./components/Icon";
+
 
 type FeedTab = "all" | "following" | "latest" | "popular" | "nearby" | "admin";
 const POSTS_PER_PAGE = 16;
@@ -20,33 +23,53 @@ type PollData = {
   options: string[];
 };
 
-type IconName =
-  | "home"
-  | "bot"
-  | "tips"
-  | "market"
-  | "funds"
-  | "weather"
-  | "plants"
-  | "ads"
-  | "events"
-  | "users"
-  | "partners"
-  | "chat"
-  | "bell"
-  | "search"
-  | "image"
-  | "video"
-  | "poll"
-  | "tag"
-  | "like"
-  | "comment"
-  | "share"
-  | "stats-users"
-  | "stats-posts"
-  | "stats-price"
-  | "stats-chat"
-  | "stats-ai";
+type NavGroup = {
+  label?: string;
+  items: { icon: IconName; label: string; href: string; badge?: string }[];
+};
+
+const navGroups: NavGroup[] = [
+  {
+    items: [
+      { icon: "home", label: "Početna", href: "/" },
+      { icon: "bot", label: "AI Savetnik", href: "/ai-asistent", badge: "Novo" },
+      { icon: "plants", label: "Bolesti biljaka", href: "/bolesti-biljaka" },
+      { icon: "tips", label: "Vodič za početnike", href: "/iskustva-i-saveti" },
+    ],
+  },
+  {
+    label: "POLJOPRIVREDA",
+    items: [
+      { icon: "market", label: "Cene na pijaci", href: "/cene-na-pijaci" },
+      { icon: "funds", label: "Subvencije i konkursi", href: "/subvencije" },
+      { icon: "weather", label: "Vremenska prognoza", href: "/vremenska-prognoza" },
+    ],
+  },
+  {
+    label: "ŽIVOT NA SELU",
+    items: [
+      { icon: "partners", label: "Kuće na selu", href: "/kuce-na-selu" },
+      { icon: "tag", label: "Zemljište", href: "/kuce-na-selu?category=ZEMLJISTE" },
+      { icon: "events", label: "Događaji i manifestacije", href: "/dogadjaji" },
+    ],
+  },
+  {
+    label: "OSTALO",
+    items: [
+      { icon: "ads", label: "Oglasi", href: "/oprema-i-oglasi" },
+      { icon: "market", label: "Mehanizacija", href: "/oprema-i-oglasi" },
+    ],
+  },
+];
+
+const categoryFilters = [
+  { label: "Sve", value: "all" },
+  { label: "Biljna proizvodnja", value: "BILJNA_PROIZVODNJA" },
+  { label: "Voćarstvo", value: "VOCARSTVO" },
+  { label: "Povrćarstvo", value: "POVRCARSTVO" },
+  { label: "Stočarstvo", value: "STOCARSTVO" },
+  { label: "Život na selu", value: "ZIVOT_NA_SELU" },
+];
 
 const navItems = [
   { icon: "home" as IconName, label: "Pocetna", href: "/" },
@@ -96,70 +119,7 @@ const featureCards = [
   },
 ];
 
-function Icon({ name }: { name: IconName }) {
-  const common = {
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-  };
 
-  switch (name) {
-    case "home":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M3 10.5 12 3l9 7.5" /><path {...common} d="M5.5 9.5V20h13V9.5" /></svg>;
-    case "bot":
-      return <svg viewBox="0 0 24 24"><rect {...common} x="4" y="7" width="16" height="12" rx="3" /><path {...common} d="M12 3v4" /><circle cx="9" cy="13" r="1" /><circle cx="15" cy="13" r="1" /></svg>;
-    case "tips":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M12 3a7 7 0 0 0-4 12.7V18a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 3Z" /><path {...common} d="M9 21h6" /></svg>;
-    case "market":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M4 8h16l-1 12H5L4 8Z" /><path {...common} d="M9 8V6a3 3 0 1 1 6 0v2" /></svg>;
-    case "funds":
-      return <svg viewBox="0 0 24 24"><rect {...common} x="4" y="3" width="16" height="18" rx="2" /><path {...common} d="M8 8h8M8 12h8M8 16h5" /></svg>;
-    case "weather":
-      return <svg viewBox="0 0 24 24"><circle {...common} cx="9" cy="9" r="3" /><path {...common} d="M14.5 18a4 4 0 1 0-.8-7.9A5 5 0 1 0 6 16h8.5Z" /></svg>;
-    case "plants":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M12 21V10" /><path {...common} d="M12 11c0-4 3-7 7-7 0 4-3 7-7 7Z" /><path {...common} d="M12 14c0-3-2.5-5.5-5.5-5.5 0 3 2.5 5.5 5.5 5.5Z" /></svg>;
-    case "ads":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M4 14h5l8 4V6l-8 4H4v4Z" /><path {...common} d="M6 14v4" /></svg>;
-    case "events":
-      return <svg viewBox="0 0 24 24"><rect {...common} x="4" y="5" width="16" height="15" rx="2" /><path {...common} d="M8 3v4M16 3v4M4 10h16" /></svg>;
-    case "users":
-      return <svg viewBox="0 0 24 24"><circle {...common} cx="9" cy="8" r="3" /><path {...common} d="M3.5 19a5.5 5.5 0 0 1 11 0" /><circle {...common} cx="17" cy="10" r="2" /></svg>;
-    case "partners":
-      return <svg viewBox="0 0 24 24"><path {...common} d="m12 20-6-3.5V7.5L12 4l6 3.5v9L12 20Z" /><path {...common} d="M8.5 12.5 11 15l4.5-5" /></svg>;
-    case "chat":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M4 5h16v11H8l-4 3V5Z" /></svg>;
-    case "bell":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M6 10a6 6 0 1 1 12 0v5l2 2H4l2-2v-5" /><path {...common} d="M10 19a2 2 0 0 0 4 0" /></svg>;
-    case "search":
-      return <svg viewBox="0 0 24 24"><circle {...common} cx="11" cy="11" r="6" /><path {...common} d="m20 20-4.2-4.2" /></svg>;
-    case "image":
-      return <svg viewBox="0 0 24 24"><rect {...common} x="4" y="5" width="16" height="14" rx="2" /><path {...common} d="m8 14 3-3 5 5" /></svg>;
-    case "video":
-      return <svg viewBox="0 0 24 24"><rect {...common} x="4" y="7" width="11" height="10" rx="2" /><path {...common} d="m15 10 5-2v8l-5-2" /></svg>;
-    case "poll":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M5 19V9M12 19V5M19 19v-7" /></svg>;
-    case "tag":
-      return <svg viewBox="0 0 24 24"><path {...common} d="m20 10-8.5 8.5L4 11V4h7l9 6Z" /><circle {...common} cx="8" cy="8" r="1" /></svg>;
-    case "like":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M8 11v9H5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3Z" /><path {...common} d="M8 20h8a2 2 0 0 0 2-1.6l1-5a2 2 0 0 0-2-2.4h-5l.6-3a2.5 2.5 0 0 0-5-.5L7.6 11" /></svg>;
-    case "comment":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M4 5h16v10H9l-5 4V5Z" /></svg>;
-    case "share":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M7 12V6h10" /><path {...common} d="m10 9 7-7 7 7" /><path {...common} d="M5 13v7h14v-7" /></svg>;
-    case "stats-users":
-      return <svg viewBox="0 0 24 24"><circle {...common} cx="12" cy="8" r="3" /><path {...common} d="M5 20a7 7 0 0 1 14 0" /></svg>;
-    case "stats-posts":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M6 12h12M6 7h12M6 17h8" /></svg>;
-    case "stats-price":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M5 18 11 12l3 3 5-6" /><path {...common} d="M19 9v4h-4" /></svg>;
-    case "stats-chat":
-      return <svg viewBox="0 0 24 24"><path {...common} d="M4 5h16v11H8l-4 3V5Z" /></svg>;
-    case "stats-ai":
-      return <svg viewBox="0 0 24 24"><rect {...common} x="5" y="7" width="14" height="11" rx="3" /><circle cx="10" cy="12.5" r="1" /><circle cx="14" cy="12.5" r="1" /></svg>;
-  }
-}
 
 async function getPageData(
   searchParamsPromise?: Promise<{ q?: string | string[]; tab?: string | string[]; page?: string | string[]; activityCity?: string | string[] }>,
@@ -174,13 +134,15 @@ async function getPageData(
   const activityCityParam = searchParams?.activityCity;
   const activityCity = (Array.isArray(activityCityParam) ? activityCityParam[0] : activityCityParam || "").trim();
 
-  const [posts, marketPrices, stats, banners, weekendActivities, activityCities] = await Promise.all([
+  const [posts, marketPrices, stats, banners, weekendActivities, activityCities, properties, partners] = await Promise.all([
     getFeedPosts(),
     getMarketPriceHighlights(5),
     getPlatformStats(),
     getSidebarBanners(true),
-    getWeekendActivities(6, activityCity || undefined),
+    getWeekendActivities(3, activityCity || undefined),
     getActivityCities(),
+    getProperties({ limit: 3, activeOnly: true }),
+    getPartners(),
   ]);
 
   const queryParam = searchParams?.q;
@@ -264,6 +226,8 @@ async function getPageData(
     currentPage,
     totalPages,
     totalPosts,
+    properties,
+    partners,
   };
 }
 
@@ -272,7 +236,7 @@ export default async function Page({
 }: {
   searchParams: Promise<{ q?: string | string[]; tab?: string | string[]; page?: string | string[]; activityCity?: string | string[] }>;
 }) {
-  const { profile, posts, marketPrices, banners, weekendActivities, activityCities, activityCity, stats, query, tab, currentPage, totalPages, totalPosts } = await getPageData(searchParams);
+  const { profile, posts, marketPrices, banners, weekendActivities, activityCities, activityCity, stats, query, tab, currentPage, totalPages, totalPosts, properties, partners } = await getPageData(searchParams);
   const userAvatar = profile?.avatarUrl || avatarImg.src;
 
   function feedHref(nextTab: FeedTab) {
@@ -362,21 +326,21 @@ export default async function Page({
           <span className="logo-mark" aria-hidden>
             <Icon name="plants" />
           </span>
-          <span>AgroAI</span>
+          <span className="logo-text">
+            <span>AgroAI</span>
+            <small className="logo-subtitle">Zavičaj</small>
+          </span>
         </Link>
 
-        <form className="search-box" action="/" method="get">
-          <button className="search-submit" type="submit" aria-label="Pokreni pretragu">
-            <span className="search-mark" aria-hidden>
-              <Icon name="search" />
-            </span>
-          </button>
-          <input name="q" defaultValue={query} placeholder="Pretrazi savete, iskustva, subvencije..." />
-          {tab !== "all" ? <input type="hidden" name="tab" value={tab} /> : null}
-        </form>
 
+ <SearchBox
+  defaultValue={query}
+  tab={tab}
+/>
         <div className="header-actions">
-          
+          <Link className="btn-new-post" href="/#new-post">
+            <span>+</span> Novi post
+          </Link>
           <Link className="icon-button" href="/ai-asistent" aria-label="AI poruke">
             <Icon name="chat" />
           </Link>
@@ -384,7 +348,7 @@ export default async function Page({
           <ProfileNavMenu
             name={profile?.name || "Korisnik"}
             location={profile?.location || "Srbija"}
-            avatarUrl={userAvatar}
+            avatarUrl={userAvatar} 
             role={profile.role}
           />
         </div>
@@ -392,20 +356,28 @@ export default async function Page({
 
       <aside className="social-sidebar">
         <nav className="social-nav">
-          {navItems.map((item, index) => (
-            <Link className={`social-nav-item ${index === 0 ? "active" : ""}`} href={item.href} key={item.label}>
-              <span aria-hidden>
-                <Icon name={item.icon} />
-              </span>
-              {item.label}
-            </Link>
+          {navGroups.map((group, gi) => (
+            <div className="nav-group" key={gi}>
+              {group.label ? <span className="nav-group-label">{group.label}</span> : null}
+              {group.items.map((item) => (
+                <Link
+                  className={`social-nav-item ${item.href === "/" && gi === 0 ? "active" : ""}`}
+                  href={item.href}
+                  key={item.label}
+                >
+                  <span aria-hidden><Icon name={item.icon} /></span>
+                  {item.label}
+                  {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
 
         <section className="premium-card">
-          <div className="premium-icon">PRO</div>
-          <h3>Premium clanstvo</h3>
-          <p>Otkljucaj napredne AI savete, detaljne analize i jos mnogo toga.</p>
+          <div className="premium-icon">👑</div>
+          <h3>Premium članstvo</h3>
+          <p>Otključaj napredne AI savete, detaljne analize i još mnogo toga.</p>
           <Link className="premium-button" href="/ai-asistent">Nadogradi sada</Link>
         </section>
 
@@ -443,6 +415,18 @@ export default async function Page({
           <Link className={tab === "latest" ? "active" : ""} href={feedHref("latest")}>Najnovije</Link>
           <Link className={tab === "popular" ? "active" : ""} href={feedHref("popular")}>Popularno</Link>
         </nav>
+
+        <div className="category-filter-bar">
+          {categoryFilters.map((f) => (
+            <Link
+              key={f.value}
+              href={`/?${f.value !== "all" ? `cat=${f.value}` : ""}`}
+              className="category-filter-chip"
+            >
+              {f.label}
+            </Link>
+          ))}
+        </div>
 
         <section className="post-list">
           {posts.length ? posts.map((post) => (
@@ -553,7 +537,6 @@ export default async function Page({
         <section className="side-panel">
           <div className="panel-heading">
             <h3>Cene na pijaci</h3>
-            <Link href="/cene-na-pijaci">Pogledaj sve</Link>
           </div>
           <div className="price-list">
             {marketPrices.map((price) => (
@@ -574,14 +557,51 @@ export default async function Page({
               </div>
             ))}
           </div>
+          <Link className="see-all-link" href="/cene-na-pijaci">Vidi cene →</Link>
         </section>
+
+        {properties.length ? (
+          <section className="side-panel">
+            <div className="panel-heading">
+              <h3>Kuće na selu</h3>
+              <Link href="/kuce-na-selu">Pogledaj sve</Link>
+            </div>
+            <div className="property-list">
+              {properties.map((prop) => (
+                <Link className="property-card" href={`/kuce-na-selu`} key={prop.id}>
+                  {prop.imageUrl ? (
+                    <div className="property-card-img">
+                      <img src={prop.imageUrl} alt={prop.title} />
+                      <span className="property-badge">Novo</span>
+                    </div>
+                  ) : (
+                    <div className="property-card-img property-card-img--empty">
+                      <Icon name="partners" />
+                    </div>
+                  )}
+                  <div className="property-card-body">
+                    <strong>{prop.title}</strong>
+                    <small>
+                      {prop.areaSqm ? `${prop.areaSqm}m²` : ""}
+                      {prop.rooms ? ` · ${prop.rooms} sobe` : ""}
+                      {prop.landHa ? ` · ${prop.landHa}ha placa` : ""}
+                    </small>
+                    <span className="property-price">
+                      {Number(prop.price).toLocaleString("sr-RS")} {prop.currency}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section className="side-panel weekend-activities-panel">
           <div className="panel-heading">
             <h3>Aktivnosti ovog vikenda</h3>
-            <Link href="/dogadjaji">Pogledaj sve</Link>
           </div>
 
+          
           <form className="weekend-filter-form" method="get" action="/">
             {query ? <input type="hidden" name="q" value={query} /> : null}
             {tab !== "all" ? <input type="hidden" name="tab" value={tab} /> : null}
@@ -600,14 +620,23 @@ export default async function Page({
 
           <div className="weekend-activity-list">
             {weekendActivities.length ? weekendActivities.map((activity) => (
-              <article className="weekend-activity-item" key={activity.id}>
-                {activity.imageUrl ? <img className="weekend-activity-thumb" src={activity.imageUrl} alt={activity.title} /> : null}
-                <strong>{activity.title}</strong>
-                <small>{activity.city} · {new Date(activity.startAt).toLocaleString("sr-RS", { weekday: "short", hour: "2-digit", minute: "2-digit" })}</small>
-                <p>{activity.location || activity.category || "Lokalni dogadjaj"}</p>
+              <article className="weekend-activity-item weekend-activity-item--compact" key={activity.id}>
+                {activity.imageUrl ? (
+                  <img className="weekend-activity-thumb" src={activity.imageUrl} alt={activity.title} />
+                ) : (
+                  <div className="weekend-activity-thumb weekend-activity-thumb--placeholder">
+                    <Icon name="events" />
+                  </div>
+                )}
+                <div className="weekend-activity-info">
+                  <strong>{activity.title}</strong>
+                  <small>{activity.city} · {new Date(activity.startAt).toLocaleString("sr-RS", { weekday: "short", hour: "2-digit", minute: "2-digit" })}</small>
+                  {activity.category ? <span className="activity-tag">{activity.category}</span> : null}
+                </div>
               </article>
-            )) : <p className="muted">Nema aktivnosti za izabrani grad ovog vikenda.</p>}
+            )) : <p className="muted">Nema aktivnosti ovog vikenda.</p>}
           </div>
+          <Link className="see-all-link" href="/dogadjaji">Vidi sve događaje →</Link>
         </section>
 
         {banners.length ? banners.map((banner) => (
@@ -628,44 +657,69 @@ export default async function Page({
               <div>
                 <h3>{banner.title}</h3>
                 {banner.body ? <p>{banner.body}</p> : null}
-                {banner.ctaHref && banner.ctaText ? <Link href={banner.ctaHref}>{banner.ctaText} -&gt;</Link> : null}
+                {banner.ctaHref && banner.ctaText ? <Link href={banner.ctaHref}>{banner.ctaText} →</Link> : null}
               </div>
               {banner.imageUrl ? (
                 <div className="dynamic-banner-image-wrap">
                   <img className="dynamic-banner-image" src={banner.imageUrl} alt={banner.title} />
                 </div>
               ) : (
-                <div className="bottles">
-                  <span />
-                  <span />
-                </div>
+                <div className="bottles"><span /><span /></div>
               )}
             </section>
           )
-        )) : (
-          <>
-            <section className="side-panel sponsor-card agrochem">
-              <div>
-                <h3>AgroChem</h3>
-                <p>Kvalitetna zastita za vece prinose</p>
-                <Link href="/subvencije">Pogledaj ponudu -&gt;</Link>
-              </div>
-              <div className="bottles">
-                <span />
-                <span />
-              </div>
-            </section>
+        )) : null}
 
-            <section className="tractor-ad">
-              <div>
-                <h3>Poljoprivredna mehanizacija</h3>
-                <p>POPUSTI DO 20%</p>
-                <Link className="tractor-link" href="/subvencije">Saznaj vise</Link>
-              </div>
-            </section>
-          </>
-        )}
+        {partners.length ? (
+          <section className="side-panel">
+            <div className="panel-heading">
+              <h3>Prijatelji sajta</h3>
+            </div>
+            <div className="partners-logo-grid">
+              {partners.slice(0, 8).map((partner) => (
+                partner.website ? (
+                  <a className="partner-logo-item" href={partner.website} target="_blank" rel="noopener noreferrer" key={partner.id} title={partner.name}>
+                    {partner.logoUrl ? (
+                      <img src={partner.logoUrl} alt={partner.name} />
+                    ) : (
+                      <span className="partner-logo-fallback">{partner.name.slice(0, 4)}</span>
+                    )}
+                  </a>
+                ) : (
+                  <div className="partner-logo-item" key={partner.id} title={partner.name}>
+                    {partner.logoUrl ? (
+                      <img src={partner.logoUrl} alt={partner.name} />
+                    ) : (
+                      <span className="partner-logo-fallback">{partner.name.slice(0, 4)}</span>
+                    )}
+                  </div>
+                )
+              ))}
+            </div>
+            <Link className="see-all-link" href="/prijatelji-sajta">Vidi sve prijatelje →</Link>
+          </section>
+        ) : null}
       </aside>
+
+      <section className="explore-more-section">
+        <h3>Istraži više</h3>
+        <div className="explore-more-grid">
+          {[
+            { icon: "plants" as IconName, label: "Vodič za sadnju", sub: "Kada i šta saditi" },
+            { icon: "tips" as IconName, label: "Bolesti biljaka", sub: "Prepoznavanje i zaštita" },
+            { icon: "ads" as IconName, label: "Agro oglasi", sub: "Kupovina / Prodaja" },
+            { icon: "market" as IconName, label: "Mehanizacija", sub: "Traktori i oprema" },
+            { icon: "tag" as IconName, label: "Zemljište", sub: "Kupovina / Najam" },
+            { icon: "share" as IconName, label: "Turizam na selu", sub: "Otkrij lepotu Srbije" },
+          ].map((item) => (
+            <Link className="explore-more-card" href="/" key={item.label}>
+              <span className="explore-more-icon"><Icon name={item.icon} /></span>
+              <strong>{item.label}</strong>
+              <small>{item.sub}</small>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <footer className="bottom-stats" id="feed-bottom-stats">
         <div>

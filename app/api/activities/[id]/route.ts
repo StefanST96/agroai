@@ -73,8 +73,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Krajnji datum mora biti nakon pocetnog." }, { status: 400 });
   }
 
-  const updated = await updateWeekendActivity({
-    id: activityId,
+  const updated = await updateWeekendActivity(activityId,{
     title,
     city,
     location,

@@ -356,6 +356,39 @@ model Partner {
   @@index([createdAt])
 }
 
+model Property {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?  @db.Text
+  price       Decimal  @db.Decimal(12, 2)
+  currency    String   @default("EUR")
+  city        String
+  region      String?
+  areaSqm     Int?
+  landHa      Decimal? @db.Decimal(8, 2)
+  rooms       Int?
+  category    PropertyCategory @default(KUCA)
+  imageUrl    String?
+  contactPhone String?
+  contactName  String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([city])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+enum PropertyCategory {
+  KUCA
+  ZEMLJISTE
+  STAN
+  VIKENDICA
+  IMANJE
+}
+
 enum Role {
   USER
   MODERATOR
@@ -368,6 +401,11 @@ enum PostCategory {
   MARKET
   SUBSIDY
   DISEASE
+  VOCARSTVO
+  BILJNA_PROIZVODNJA
+  STOCARSTVO
+  POVRCARSTVO
+  ZIVOT_NA_SELU
 }
 
 enum SubsidyStatus {

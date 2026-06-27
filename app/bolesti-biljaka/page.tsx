@@ -15,7 +15,7 @@ export default function PlantDiseasesPage() {
 
 async function PlantDiseasesPageContent() {
   const currentUser = await getCurrentUser(await cookies());
-  const recentAnalyses = currentUser ? await getDiseaseAnalysesForUser(currentUser.id, 6) : [];
+  const recentAnalyses = currentUser ? await getDiseaseAnalysesForUser(currentUser.id, { limit: 6 }) : [];
 
   return (
     <main className="main v2-page">

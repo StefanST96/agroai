@@ -4,7 +4,9 @@ export function getProductIcon(productName?: string | null) {
   if (name.includes("malin") || name.includes("jagod")) return "🍓";
   if (name.includes("kukuruz")) return "🌽";
   if (name.includes("psenic") || name.includes("zito")) return "🌾";
-  if (name.includes("svinj") || name.includes("pras")) return "🐖";
+  if (name.includes("svinj")) return "🐖";
+  if (name.includes("pras")) return "🐷";
+  if (name.includes("krav")) return "🐄";
   if (name.includes("jabuk")) return "🍎";
   if (name.includes("paradajz")) return "🍅";
 

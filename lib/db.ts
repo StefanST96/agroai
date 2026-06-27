@@ -818,3 +818,157 @@ export async function markNotificationsReadForUser(userId: number, notificationK
   });
   return result.count;
 }
+
+export async function createSubsidy(data: {
+  title: string;
+  institution: string;
+  description: string;
+  amount?: string;
+  region?: string;
+  status?: "DRAFT" | "OPEN" | "CLOSING_SOON" | "CLOSED";
+  opensAt?: Date;
+  closesAt?: Date;
+  link?: string;
+}) {
+  return prisma.subsidy.create({ data: data as any });
+}
+
+export async function createWeekendActivity(data: {
+  title: string;
+  description?: string;
+  city: string;
+  location?: string;
+  category?: string;
+  imageUrl?: string;
+  imageAssetId?: number;
+  startAt: Date;
+  endAt?: Date;
+  createdById: number;
+}) {
+  return prisma.weekendActivity.create({ data });
+}
+
+export async function updateWeekendActivity(id: number, data: {
+  title?: string;
+  description?: string;
+  city?: string;
+  location?: string;
+  category?: string;
+  imageUrl?: string;
+  imageAssetId?: number | null;
+  startAt?: Date;
+  endAt?: Date | null;
+}) {
+  return prisma.weekendActivity.update({ where: { id }, data });
+}
+
+export async function deleteWeekendActivity(id: number) {
+  return prisma.weekendActivity.delete({ where: { id } });
+}
+
+export async function getWeekendActivityById(id: number) {
+  const activity = await prisma.weekendActivity.findUnique({
+    where: { id },
+    include: {
+      imageAsset: { select: { id: true } },
+      createdBy: { select: { id: true, name: true, username: true } },
+    },
+  });
+  if (!activity) return null;
+  return {
+    ...activity,
+    imageUrl: activity.imageUrl ?? toMediaUrl(activity.imageAsset?.id),
+  };
+}
+
+export async function getPastActivities(limit = 6, city?: string) {
+  const now = new Date();
+  const activities = await prisma.weekendActivity.findMany({
+    where: {
+      startAt: { lt: now },
+      ...(city ? { city } : {}),
+    },
+    include: {
+      imageAsset: { select: { id: true } },
+      createdBy: { select: { id: true, name: true, username: true } },
+    },
+    orderBy: { startAt: "desc" },
+    take: limit,
+  });
+  return activities.map((a) => ({
+    ...a,
+    imageUrl: a.imageUrl ?? toMediaUrl(a.imageAsset?.id),
+  }));
+}
+
+export async function deletePostById(postId: number) {
+  return prisma.post.delete({ where: { id: postId } });
+}
+
+export async function getDiseaseAnalysesForUser(userId: number, options?: { limit?: number }) {
+  return prisma.diseaseAnalysis.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: options?.limit,
+    include: {
+    upload: true,
+  },
+  });
+}
+
+// ── Property (Kuće na selu) ──────────────────────────────────────────────────
+
+export async function getProperties(options?: { category?: string; limit?: number; activeOnly?: boolean }) {
+  return prisma.property.findMany({
+    where: {
+      ...(options?.activeOnly !== false ? { isActive: true } : {}),
+      ...(options?.category ? { category: options.category as any } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: options?.limit,
+  });
+}
+
+export async function getPropertyById(id: number) {
+  return prisma.property.findUnique({ where: { id } });
+}
+
+export async function createProperty(data: {
+  title: string;
+  description?: string;
+  price: number;
+  currency?: string;
+  city: string;
+  region?: string;
+  areaSqm?: number;
+  landHa?: number;
+  rooms?: number;
+  category?: "KUCA" | "ZEMLJISTE" | "STAN" | "VIKENDICA" | "IMANJE";
+  imageUrl?: string;
+  contactPhone?: string;
+  contactName?: string;
+}) {
+  return prisma.property.create({ data: data as any });
+}
+
+export async function updateProperty(id: number, data: Partial<{
+  title: string;
+  description: string;
+  price: number;
+  city: string;
+  region: string;
+  areaSqm: number;
+  landHa: number;
+  rooms: number;
+  category: string;
+  imageUrl: string;
+  contactPhone: string;
+  contactName: string;
+  isActive: boolean;
+}>) {
+  return prisma.property.update({ where: { id }, data: data as any });
+}
+
+export async function deleteProperty(id: number) {
+  return prisma.property.delete({ where: { id } });
+}

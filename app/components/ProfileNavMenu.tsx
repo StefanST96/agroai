@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import ZoomableProfileImage from "./ZoomableProfileImage";
 
 type Props = {
   name: string;
@@ -41,7 +40,7 @@ export default function ProfileNavMenu({ name, location, avatarUrl, role }: Prop
           <strong>{name}</strong>
           <small>{location}</small>
         </span>
-        <ZoomableProfileImage src={avatarUrl} alt={name || "Korisnik"} stopPropagation />
+        <img src={avatarUrl} alt={name || "Korisnik"}/>
       </button>
 
       {open ? (

@@ -60,9 +60,9 @@ export default async function EventsPage({
           <button className="button secondary" type="submit">Primeni</button>
         </form>
       </section>
-
+      <h2>Aktivne aktivnosti</h2>
       <section className="timeline">
-        <h2>Aktivne aktivnosti</h2>
+        
         {events.length ? (
           events.map((event) => (
             <article className="panel subsidy-row" key={event.id}>
@@ -101,9 +101,9 @@ export default async function EventsPage({
           </section>
         )}
       </section>
-
+      <h2>Prosle aktivnosti</h2>
       <section className="timeline past-activities-section">
-        <h2>Prosle aktivnosti</h2>
+       
         {pastEvents.length ? (
           pastEvents.map((event) => (
             <article className="panel subsidy-row past-activity" key={`past-${event.id}`}>
