@@ -43,13 +43,11 @@ export default function ProfileNavMenu({ name, location, avatarUrl, role }: Prop
         <img src={avatarUrl} alt={name || "Korisnik"}/>
       </button>
 
-      {open ? (
-        <div className="profile-dropdown">
-          <Link href="/profil" onClick={() => setOpen(false)}>Moj profil</Link>
-          {role === "ADMIN" || role === "MODERATOR" ? <Link href="/admin" onClick={() => setOpen(false)}>Dashboard</Link> : null}
-          <button type="button" onClick={handleLogout}>Odjavi se</button>
-        </div>
-      ) : null}
+      <div className={`profile-dropdown ${open ? "open" : ""}`} aria-hidden={!open}>
+        <Link href="/profil" onClick={() => setOpen(false)}>Moj profil</Link>
+        {role === "ADMIN" || role === "MODERATOR" ? <Link href="/admin" onClick={() => setOpen(false)}>Dashboard</Link> : null}
+        <button type="button" onClick={handleLogout}>Odjavi se</button>
+      </div>
     </div>
   );
 }

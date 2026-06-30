@@ -3,6 +3,59 @@ import { prisma } from "./prisma";
 
 type RequestLike = any;
 
+function normalizeEntityValue(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("sr-RS");
+}
+
+function cleanEntityValue(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+async function ensureCanonicalProductId(
+  tx: any,
+  input: { name: string; category: string }
+) {
+  const cleanedName = cleanEntityValue(input.name);
+  const cleanedCategory = cleanEntityValue(input.category);
+  const normalizedName = normalizeEntityValue(cleanedName);
+  const normalizedCategory = normalizeEntityValue(cleanedCategory);
+
+  const allProducts = await tx.product.findMany({
+    select: { id: true, name: true, category: true },
+  });
+
+  const matches = allProducts.filter(
+    (item: { id: number; name: string; category: string }) =>
+      normalizeEntityValue(item.name) === normalizedName &&
+      normalizeEntityValue(item.category) === normalizedCategory
+  );
+
+  if (!matches.length) {
+    const created = await tx.product.create({
+      data: { name: cleanedName, category: cleanedCategory },
+      select: { id: true },
+    });
+    return created.id;
+  }
+
+  const sorted = [...matches].sort((a, b) => a.id - b.id);
+  const canonicalId = sorted[0].id;
+  const duplicateIds = sorted.slice(1).map((item) => item.id);
+
+  if (duplicateIds.length) {
+    await tx.marketPrice.updateMany({
+      where: { productId: { in: duplicateIds } },
+      data: { productId: canonicalId },
+    });
+
+    await tx.product.deleteMany({
+      where: { id: { in: duplicateIds } },
+    });
+  }
+
+  return canonicalId;
+}
+
 function toMediaUrl(assetId?: number | null) {
   return assetId ? `/api/media/${assetId}` : null;
 }
@@ -110,22 +163,6 @@ export async function getPostsByUser(userId: number) {
 }
 
 export async function getMarketPrices() {
-  return prisma.marketPrice.findMany({
-    include: {
-      market: true,
-      product: true,
-    },
-    orderBy: { reportedAt: "desc" },
-  });
-}
-
-function dayStartMs(value: Date) {
-  const d = new Date(value);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-export async function getMarketPriceHighlights(limit = 5) {
   const prices = await prisma.marketPrice.findMany({
     include: {
       market: true,
@@ -134,11 +171,45 @@ export async function getMarketPriceHighlights(limit = 5) {
     orderBy: { reportedAt: "desc" },
   });
 
+  const latestByMarketProduct = new Map<string, (typeof prices)[number]>();
+  for (const item of prices) {
+    const key = `${item.marketId}:${item.productId}`;
+    if (!latestByMarketProduct.has(key)) {
+      latestByMarketProduct.set(key, item);
+    }
+  }
+
+  return Array.from(latestByMarketProduct.values());
+}
+
+function dayStartMs(value: Date) {
+  const d = new Date(value);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+export async function getMarketPriceHighlights(limit = 5, marketCity?: string) {
+  const prices = await prisma.marketPrice.findMany({
+    include: {
+      market: true,
+      product: true,
+    },
+    orderBy: { reportedAt: "desc" },
+  });
+
+  const normalizedMarketCity = marketCity?.trim().toLowerCase();
+  const filteredPrices = normalizedMarketCity
+    ? prices.filter((item) => {
+        const haystack = `${item.market?.name || ""} ${item.market?.city || ""}`.toLowerCase();
+        return haystack.includes(normalizedMarketCity);
+      })
+    : prices;
+
   const todayStart = dayStartMs(new Date());
   const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
 
-  const grouped = new Map<string, typeof prices>();
-  for (const item of prices) {
+  const grouped = new Map<string, typeof filteredPrices>();
+  for (const item of filteredPrices) {
     const key = `${item.marketId}:${item.productId}`;
     const current = grouped.get(key);
     if (current) {
@@ -186,10 +257,11 @@ export async function getSubsidies() {
 
 export async function getWeekendActivities(limit = 6, city?: string) {
   const now = new Date();
+  const normalizedCity = city?.trim();
   const activities = await prisma.weekendActivity.findMany({
     where: {
       startAt: { gte: now },
-      ...(city ? { city } : {}),
+      ...(normalizedCity ? { city: { contains: normalizedCity } } : {}),
     },
     include: {
       imageAsset: {
@@ -487,7 +559,35 @@ export async function getPostsByUserDetailed(userId: number) {
     where: { authorId: userId },
     include: {
       author: true,
-      comments: true,
+      comments: {
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              avatarUrl: true,
+            },
+          },
+          likes: {
+            select: {
+              authorId: true,
+            },
+          },
+          replies: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
       likes: true,
       imageAsset: {
         select: { id: true },
@@ -709,27 +809,53 @@ export async function createMarketPrice(data: {
   unit: string;
   reporterId?: number;
 }) {
-  const market = await prisma.market.upsert({
-    where: { name_city: { name: data.marketName, city: data.marketCity } },
-    update: {},
-    create: { name: data.marketName, city: data.marketCity },
-  });
+  const cleanedMarketName = cleanEntityValue(data.marketName);
+  const cleanedMarketCity = cleanEntityValue(data.marketCity);
 
-  const product = await prisma.product.upsert({
-    where: { name_category: { name: data.productName, category: data.productCategory } },
-    update: {},
-    create: { name: data.productName, category: data.productCategory },
-  });
+  return prisma.$transaction(async (tx) => {
+    const market = await tx.market.upsert({
+      where: { name_city: { name: cleanedMarketName, city: cleanedMarketCity } },
+      update: {},
+      create: { name: cleanedMarketName, city: cleanedMarketCity },
+    });
 
-  return prisma.marketPrice.create({
-    data: {
-      marketId: market.id,
-      productId: product.id,
-      reporterId: data.reporterId,
-      price: data.price,
-      unit: data.unit as any,
-      source: "User submitted",
-    },
+    const canonicalProductId = await ensureCanonicalProductId(tx, {
+      name: data.productName,
+      category: data.productCategory,
+    });
+
+    const existing = await tx.marketPrice.findFirst({
+      where: {
+        marketId: market.id,
+        productId: canonicalProductId,
+      },
+      orderBy: { reportedAt: "desc" },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return tx.marketPrice.update({
+        where: { id: existing.id },
+        data: {
+          reporterId: data.reporterId,
+          price: data.price,
+          unit: data.unit as any,
+          source: "User submitted",
+          reportedAt: new Date(),
+        },
+      });
+    }
+
+    return tx.marketPrice.create({
+      data: {
+        marketId: market.id,
+        productId: canonicalProductId,
+        reporterId: data.reporterId,
+        price: data.price,
+        unit: data.unit as any,
+        source: "User submitted",
+      },
+    });
   });
 }
 
@@ -740,15 +866,53 @@ export async function createMarketPriceForExisting(data: {
   unit: string;
   reporterId?: number;
 }) {
-  return prisma.marketPrice.create({
-    data: {
-      marketId: data.marketId,
-      productId: data.productId,
-      reporterId: data.reporterId,
-      price: data.price,
-      unit: data.unit as any,
-      source: "User submitted",
-    },
+  return prisma.$transaction(async (tx) => {
+    const selectedProduct = await tx.product.findUnique({
+      where: { id: data.productId },
+      select: { name: true, category: true },
+    });
+
+    if (!selectedProduct) {
+      throw new Error("Product not found");
+    }
+
+    const canonicalProductId = await ensureCanonicalProductId(tx, {
+      name: selectedProduct.name,
+      category: selectedProduct.category,
+    });
+
+    const existing = await tx.marketPrice.findFirst({
+      where: {
+        marketId: data.marketId,
+        productId: canonicalProductId,
+      },
+      orderBy: { reportedAt: "desc" },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return tx.marketPrice.update({
+        where: { id: existing.id },
+        data: {
+          reporterId: data.reporterId,
+          price: data.price,
+          unit: data.unit as any,
+          source: "User submitted",
+          reportedAt: new Date(),
+        },
+      });
+    }
+
+    return tx.marketPrice.create({
+      data: {
+        marketId: data.marketId,
+        productId: canonicalProductId,
+        reporterId: data.reporterId,
+        price: data.price,
+        unit: data.unit as any,
+        source: "User submitted",
+      },
+    });
   });
 }
 
@@ -829,8 +993,30 @@ export async function createSubsidy(data: {
   opensAt?: Date;
   closesAt?: Date;
   link?: string;
+  imageUrl?: string;
+  imageAssetId?: number;
 }) {
   return prisma.subsidy.create({ data: data as any });
+}
+
+export async function updateSubsidy(id: number, data: Partial<{
+  title: string;
+  institution: string;
+  description: string;
+  amount: string | null;
+  region: string | null;
+  status: "DRAFT" | "OPEN" | "CLOSING_SOON" | "CLOSED";
+  opensAt: Date | null;
+  closesAt: Date | null;
+  link: string | null;
+  imageUrl: string | null;
+  imageAssetId: number | null;
+}>) {
+  return prisma.subsidy.update({ where: { id }, data: data as any });
+}
+
+export async function deleteSubsidy(id: number) {
+  return prisma.subsidy.delete({ where: { id } });
 }
 
 export async function createWeekendActivity(data: {
@@ -883,10 +1069,11 @@ export async function getWeekendActivityById(id: number) {
 
 export async function getPastActivities(limit = 6, city?: string) {
   const now = new Date();
+  const normalizedCity = city?.trim();
   const activities = await prisma.weekendActivity.findMany({
     where: {
       startAt: { lt: now },
-      ...(city ? { city } : {}),
+      ...(normalizedCity ? { city: { contains: normalizedCity } } : {}),
     },
     include: {
       imageAsset: { select: { id: true } },
@@ -918,14 +1105,88 @@ export async function getDiseaseAnalysesForUser(userId: number, options?: { limi
 
 // ── Property (Kuće na selu) ──────────────────────────────────────────────────
 
-export async function getProperties(options?: { category?: string; limit?: number; activeOnly?: boolean }) {
+function getPropertyWhere(options?: {
+  category?: string;
+  activeOnly?: boolean;
+  isActive?: boolean;
+  query?: string;
+  location?: string;
+  locationScope?: "local" | "regional" | "all";
+}) {
+  const query = (options?.query || "").trim();
+  const location = (options?.location || "").trim();
+  const locationScope = options?.locationScope || "local";
+  const andConditions: Array<Record<string, unknown>> = [];
+
+  if (query) {
+    andConditions.push({
+      OR: [
+        { title: { contains: query } },
+        { city: { contains: query } },
+        { region: { contains: query } },
+        { description: { contains: query } },
+        { contactName: { contains: query } },
+      ],
+    });
+  }
+
+  if (location && locationScope !== "all") {
+    andConditions.push({
+      OR:
+        locationScope === "regional"
+          ? [
+              { city: { contains: location } },
+              { region: { contains: location } },
+              { title: { contains: location } },
+              { description: { contains: location } },
+              { contactName: { contains: location } },
+            ]
+          : [
+              { city: { contains: location } },
+              { region: { contains: location } },
+            ],
+    });
+  }
+
+  return {
+    ...(typeof options?.isActive === "boolean"
+      ? { isActive: options.isActive }
+      : options?.activeOnly !== false
+        ? { isActive: true }
+        : {}),
+    ...(options?.category ? { category: options.category as any } : {}),
+    ...(andConditions.length ? { AND: andConditions } : {}),
+  };
+}
+
+export async function getProperties(options?: {
+  category?: string;
+  limit?: number;
+  activeOnly?: boolean;
+  isActive?: boolean;
+  query?: string;
+  location?: string;
+  locationScope?: "local" | "regional" | "all";
+  skip?: number;
+}) {
   return prisma.property.findMany({
-    where: {
-      ...(options?.activeOnly !== false ? { isActive: true } : {}),
-      ...(options?.category ? { category: options.category as any } : {}),
-    },
+    where: getPropertyWhere(options),
     orderBy: { createdAt: "desc" },
+    skip: options?.skip,
     take: options?.limit,
+  });
+}
+
+export async function getPropertiesCount(options?: {
+  category?: string;
+  activeOnly?: boolean;
+  isActive?: boolean;
+  query?: string;
+  location?: string;
+  locationScope?: "local" | "regional" | "all";
+}) {
+  return prisma.property.count({
+    where: getPropertyWhere(options),
   });
 }
 
@@ -955,6 +1216,7 @@ export async function updateProperty(id: number, data: Partial<{
   title: string;
   description: string;
   price: number;
+  currency: string;
   city: string;
   region: string;
   areaSqm: number;

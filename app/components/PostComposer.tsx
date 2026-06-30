@@ -4,6 +4,19 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import ZoomableProfileImage from "./ZoomableProfileImage";
 
+const postCategoryOptions = [
+  { value: "GENERAL", label: "Opste" },
+  { value: "BILJNA_PROIZVODNJA", label: "Biljna proizvodnja" },
+  { value: "VOCARSTVO", label: "Vocarstvo" },
+  { value: "POVRCARSTVO", label: "Povrcarstvo" },
+  { value: "STOCARSTVO", label: "Stocarstvo" },
+  { value: "ZIVOT_NA_SELU", label: "Zivot na selu" },
+  { value: "QUESTION", label: "Pitanje" },
+  { value: "SUBSIDY", label: "Subvencije" },
+  { value: "DISEASE", label: "Bolesti" },
+  { value: "MARKET", label: "Trziste" },
+] as const;
+
 type Props = {
   userAvatar: string;
   id?: string;
@@ -84,28 +97,6 @@ export default function PostComposer({ userAvatar, id }: Props) {
     }
 
     return { question, options: options.slice(0, 4) };
-  }
-
-  function cycleCategory() {
-    const categories = ["GENERAL", "QUESTION", "MARKET", "SUBSIDY", "DISEASE"];
-    const currentIndex = categories.indexOf(category);
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % categories.length;
-    setCategory(categories[nextIndex]);
-  }
-
-  function getCategoryLabel(value: string) {
-    switch (value) {
-      case "SUBSIDY":
-        return "Subvencije";
-      case "QUESTION":
-        return "Pitanje";
-      case "MARKET":
-        return "Trziste";
-      case "DISEASE":
-        return "Bolesti";
-      default:
-        return "Opste";
-    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -201,6 +192,16 @@ export default function PostComposer({ userAvatar, id }: Props) {
           onChange={(event) => setDescription(event.target.value)}
           rows={3}
         />
+        <label className="field">
+          <span>Grupa objave</span>
+          <select value={category} onChange={(event) => setCategory(event.target.value)}>
+            {postCategoryOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <input
           ref={imageInputRef}
           type="file"
@@ -228,9 +229,6 @@ export default function PostComposer({ userAvatar, id }: Props) {
           </button>
           <button type="button" onClick={togglePollMode} className={pollEnabled ? "poll-toggle active" : "poll-toggle"}>
             {pollEnabled ? "Anketa ukljucena" : "Anketa"}
-          </button>
-          <button type="button" onClick={cycleCategory}>
-            Oznaka: {getCategoryLabel(category)}
           </button>
           <button className="publish-button" type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Objavljujem..." : "Objavi"}

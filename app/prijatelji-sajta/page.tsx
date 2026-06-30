@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentUser, getPartners } from "@/lib/db";
+import CollapsibleForm from "@/app/components/CollapsibleForm";
 import PartnerForm from "@/app/components/PartnerForm";
 import PartnerDeleteButton from "@/app/components/PartnerDeleteButton";
 
@@ -34,8 +35,9 @@ export default async function PartnersPage() {
 
       {isAdmin ? (
         <section className="panel">
-          <h2>Dodaj novog partnera</h2>
-          <PartnerForm />
+          <CollapsibleForm id="new-partner" summary="Dodaj novog partnera">
+            <PartnerForm />
+          </CollapsibleForm>
         </section>
       ) : null}
 

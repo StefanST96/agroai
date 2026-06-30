@@ -2,20 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/db";
-
-type WeatherResponse = {
-  current?: {
-    time: string;
-    temperature_2m: number;
-    wind_speed_10m: number;
-  };
-  daily?: {
-    time: string[];
-    temperature_2m_max: number[];
-    temperature_2m_min: number[];
-    precipitation_probability_max: number[];
-  };
-};
+import { getWeatherSnapshotForLocation } from "@/lib/weather";
 
 async function getWeatherData() {
   const cookieStore = await cookies();
@@ -24,52 +11,12 @@ async function getWeatherData() {
     redirect("/login");
   }
 
-  let weather: WeatherResponse | null = null;
-  let source = "Open-Meteo";
-
-  try {
-    const response = await fetch(
-      "https://api.open-meteo.com/v1/forecast?latitude=43.8558&longitude=19.8467&current=temperature_2m,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FBelgrade",
-      { next: { revalidate: 1800 } }
-    );
-    if (response.ok) {
-      weather = (await response.json()) as WeatherResponse;
-    } else {
-      source = "Lokalni fallback";
-    }
-  } catch {
-    source = "Lokalni fallback";
-  }
-
-  const fallbackDaily = [
-    { day: "Danas", max: 29, min: 17, rain: 20 },
-    { day: "Sutra", max: 31, min: 18, rain: 15 },
-    { day: "Prekosutra", max: 28, min: 16, rain: 35 },
-  ];
-
-  return { profile, weather, source, fallbackDaily };
+  const snapshot = await getWeatherSnapshotForLocation(profile.location || "");
+  return { profile, snapshot };
 }
 
 export default async function WeatherPage() {
-  const { profile, weather, source, fallbackDaily } = await getWeatherData();
-
-  const currentTemp = weather?.current?.temperature_2m;
-  const currentWind = weather?.current?.wind_speed_10m;
-  const daily = weather?.daily;
-
-  const forecastItems = daily?.time?.length
-    ? daily.time.slice(0, 3).map((day, index) => ({
-        day: new Date(day).toLocaleDateString("sr-RS", { weekday: "long", day: "2-digit", month: "2-digit" }),
-        min: daily.temperature_2m_min?.[index],
-        max: daily.temperature_2m_max?.[index],
-        rain: daily.precipitation_probability_max?.[index],
-      }))
-    : fallbackDaily.map((item) => ({
-        day: item.day,
-        min: item.min,
-        max: item.max,
-        rain: item.rain,
-      }));
+  const { profile, snapshot } = await getWeatherData();
 
   function rainNote(rain?: number) {
     if (typeof rain !== "number") return "Bez podataka";
@@ -83,8 +30,8 @@ export default async function WeatherPage() {
       <div className="topbar">
         <div>
           <div className="eyebrow">Vremenska prognoza</div>
-          <h1>Prognoza za region korisnika ({profile.location || "Srbija"})</h1>
-          <p className="muted">Izvor podataka: {source}</p>
+          <h1>Prognoza za {snapshot.cityLabel || profile.location || "Srbija"}</h1>
+          <p className="muted">Izvor podataka: {snapshot.source}</p>
         </div>
         <Link className="button secondary" href="/">
           Nazad na feed
@@ -94,10 +41,10 @@ export default async function WeatherPage() {
       <section className="weather-hero panel">
         <article className="weather-kpi-card">
           <h2>Trenutni uslovi</h2>
-          <div className="weather-kpi-value">{typeof currentTemp === "number" ? `${currentTemp}°C` : "N/A"}</div>
+          <div className="weather-kpi-value">{typeof snapshot.currentTemp === "number" ? `${snapshot.currentTemp}°C` : "N/A"}</div>
           <p className="muted">Temperatura vazduha</p>
           <p>
-            <strong>Vetar:</strong> {typeof currentWind === "number" ? `${currentWind} km/h` : "N/A"}
+            <strong>Vetar:</strong> {typeof snapshot.currentWind === "number" ? `${snapshot.currentWind} km/h` : "N/A"}
           </p>
         </article>
 
@@ -117,7 +64,7 @@ export default async function WeatherPage() {
       <section className="panel weather-forecast-panel">
         <h2>3-dnevni pregled</h2>
         <div className="weather-forecast-grid">
-          {forecastItems.map((item) => (
+          {snapshot.forecast.map((item) => (
             <article className="weather-day-card" key={item.day}>
               <h3>{item.day}</h3>
               <p className="weather-temp-range">

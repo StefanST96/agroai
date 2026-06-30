@@ -127,10 +127,36 @@ export default async function PublicUserProfilePage({ params }: { params: Promis
                 <PostInteractions
                   postId={post.id}
                   initialLikes={post.likes?.length ?? 0}
-                  initialComments={(post.comments ?? []).map((comment) => ({
-                    id: comment.id,
-                    content: comment.content,
-                  }))}
+                  initialComments={(post.comments ?? []).map((comment) => {
+                    const likes = new Set((comment.likes ?? []).map((like) => like.authorId));
+
+                    return {
+                      id: comment.id,
+                      content: comment.content,
+                      createdAt: comment.createdAt?.toISOString?.() || String(comment.createdAt),
+                      author: comment.author
+                        ? {
+                            id: comment.author.id,
+                            name: comment.author.name,
+                            avatarUrl: comment.author.avatarUrl || null,
+                          }
+                        : undefined,
+                      likesCount: likes.size,
+                      likedByMe: false,
+                      replies: (comment.replies ?? []).map((reply) => ({
+                        id: reply.id,
+                        content: reply.content,
+                        createdAt: reply.createdAt?.toISOString?.() || String(reply.createdAt),
+                        author: reply.author
+                          ? {
+                              id: reply.author.id,
+                              name: reply.author.name,
+                              avatarUrl: reply.author.avatarUrl || null,
+                            }
+                          : undefined,
+                      })),
+                    };
+                  })}
                 />
               </div>
               {post.imageUrl ? (

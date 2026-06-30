@@ -3,8 +3,26 @@
 import { useMemo, useState } from "react";
 
 type CommentItem = {
-  id?: number;
+  id: number;
   content: string;
+  createdAt?: string;
+  author?: {
+    id: number;
+    name: string;
+    avatarUrl?: string | null;
+  };
+  likesCount?: number;
+  likedByMe?: boolean;
+  replies?: Array<{
+    id: number;
+    content: string;
+    createdAt?: string;
+    author?: {
+      id: number;
+      name: string;
+      avatarUrl?: string | null;
+    };
+  }>;
 };
 
 type Props = {
@@ -17,7 +35,10 @@ export default function PostInteractions({ postId, initialLikes, initialComments
   const [likesCount, setLikesCount] = useState(initialLikes);
   const [comments, setComments] = useState<CommentItem[]>(initialComments);
   const [commentText, setCommentText] = useState("");
+  const [replyText, setReplyText] = useState("");
+  const [replyTargetId, setReplyTargetId] = useState<number | null>(null);
   const [showComments, setShowComments] = useState(false);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [isSendingComment, setIsSendingComment] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
@@ -27,6 +48,20 @@ export default function PostInteractions({ postId, initialLikes, initialComments
   const [feedback, setFeedback] = useState("");
 
   const commentsCount = useMemo(() => comments.length, [comments]);
+
+  async function loadComments() {
+    try {
+      setIsLoadingComments(true);
+      const response = await fetch(`/api/posts/${postId}/comments`);
+      const data = await response.json().catch(() => []);
+      if (!response.ok || !Array.isArray(data)) {
+        return;
+      }
+      setComments(data as CommentItem[]);
+    } finally {
+      setIsLoadingComments(false);
+    }
+  }
 
   async function handleLike() {
     if (isLiking) return;
@@ -79,12 +114,55 @@ export default function PostInteractions({ postId, initialLikes, initialComments
         return;
       }
 
-      setComments((prev) => [...prev, { id: data.id, content: text }]);
+      await loadComments();
       setCommentText("");
       setShowComments(true);
     } finally {
       setIsSendingComment(false);
     }
+  }
+
+  async function handleCommentLike(commentId: number) {
+    const response = await fetch(`/api/posts/${postId}/comments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "likeComment", commentId }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setFeedback(data.error ?? "Lajk komentara nije sacuvan.");
+      return;
+    }
+
+    await loadComments();
+  }
+
+  async function handleReplySubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!replyTargetId) return;
+    const text = replyText.trim();
+    if (!text) return;
+
+    const response = await fetch(`/api/posts/${postId}/comments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "reply", commentId: replyTargetId, content: text }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setFeedback(data.error ?? "Odgovor nije sacuvan.");
+      return;
+    }
+
+    setReplyText("");
+    setReplyTargetId(null);
+    await loadComments();
   }
 
   async function handleShare() {
@@ -160,8 +238,12 @@ export default function PostInteractions({ postId, initialLikes, initialComments
         </button>
         <button
           type="button"
-          onClick={() => {
-            setShowComments((prev) => !prev);
+          onClick={async () => {
+            const next = !showComments;
+            setShowComments(next);
+            if (next) {
+              await loadComments();
+            }
           }}
         >
           <span className="action-icon" aria-hidden>
@@ -213,10 +295,56 @@ export default function PostInteractions({ postId, initialLikes, initialComments
 
       {showComments ? (
         <div className="post-comments-box">
+          {isLoadingComments ? <p className="muted">Ucitavanje komentara...</p> : null}
           {comments.length ? (
-            <ul className="post-comments-list">
-              {comments.map((comment, index) => (
-                <li key={`${comment.id ?? "local"}-${index}`}>{comment.content}</li>
+            <ul className="post-comments-list rich-comments">
+              {comments.map((comment) => (
+                <li key={comment.id} className="post-comment-item">
+                  <div className="post-comment-head">
+                    <strong>{comment.author?.name || "Korisnik"}</strong>
+                    {comment.createdAt ? <small>{new Date(comment.createdAt).toLocaleString("sr-RS")}</small> : null}
+                  </div>
+                  <p>{comment.content}</p>
+                  <div className="post-comment-actions">
+                    <button type="button" onClick={() => handleCommentLike(comment.id)}>
+                      Lajk ({comment.likesCount ?? 0})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplyTargetId(comment.id);
+                        setReplyText("");
+                      }}
+                    >
+                      Odgovori
+                    </button>
+                  </div>
+
+                  {replyTargetId === comment.id ? (
+                    <form className="post-comment-form" onSubmit={handleReplySubmit}>
+                      <input
+                        value={replyText}
+                        onChange={(event) => setReplyText(event.target.value)}
+                        placeholder="Napiši odgovor..."
+                      />
+                      <button type="submit" disabled={!replyText.trim()}>Pošalji</button>
+                    </form>
+                  ) : null}
+
+                  {comment.replies?.length ? (
+                    <ul className="post-comments-list post-replies-list">
+                      {comment.replies.map((reply) => (
+                        <li key={reply.id} className="post-comment-reply">
+                          <div className="post-comment-head">
+                            <strong>{reply.author?.name || "Korisnik"}</strong>
+                            {reply.createdAt ? <small>{new Date(reply.createdAt).toLocaleString("sr-RS")}</small> : null}
+                          </div>
+                          <p>{reply.content}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </li>
               ))}
             </ul>
           ) : (

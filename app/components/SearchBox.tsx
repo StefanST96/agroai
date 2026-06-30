@@ -1,23 +1,35 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
 
 type Props = {
   defaultValue?: string;
   tab?: string;
+  category?: string;
+  activityCity?: string;
 };
 
-export default function SearchBox({ defaultValue = "", tab = "all" }: Props) {
+export default function SearchBox({ defaultValue = "", tab = "all", category = "all", activityCity = "" }: Props) {
+  const router = useRouter();
   const [query, setQuery] = useState(defaultValue);
   const [history, setHistory] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+  function loadHistory() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("search-history") || "[]");
+      setHistory(Array.isArray(saved) ? saved : []);
+    } catch {
+      setHistory([]);
+    }
+  }
+
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("search-history") || "[]");
-    setHistory(saved);
+    loadHistory();
   }, []);
 
   useEffect(() => {
@@ -41,13 +53,31 @@ export default function SearchBox({ defaultValue = "", tab = "all" }: Props) {
     setHistory(newHistory);
   }
 
+  function buildSearchHref(value: string) {
+    const params = new URLSearchParams();
+    const trimmed = value.trim();
+    if (trimmed) params.set("q", trimmed);
+    if (tab !== "all") params.set("tab", tab);
+    if (category !== "all") params.set("cat", category);
+    if (activityCity) params.set("activityCity", activityCity);
+    const qs = params.toString();
+    return qs ? `/?${qs}` : "/";
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    saveSearch(query);
+    setOpen(false);
+    router.push(buildSearchHref(query));
+  }
+
   return (
-    <div ref={wrapperRef} className="search-wrapper">
+    <div ref={wrapperRef} className="search-wrapper" onClick={() => setOpen(true)}>
       <form
         className="search-box"
         action="/"
         method="get"
-        onSubmit={() => saveSearch(query)}
+        onSubmit={handleSubmit}
       >
         <button className="search-submit" type="submit" aria-label="Pokreni pretragu">
             <span className="search-mark" aria-hidden>
@@ -60,44 +90,60 @@ export default function SearchBox({ defaultValue = "", tab = "all" }: Props) {
           value={query}
           autoComplete="off"
           placeholder="Pretraži savete, članke, ljude..."
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            loadHistory();
+            setOpen(true);
+          }}
           onChange={(e) => setQuery(e.target.value)}
         />
 
         {tab !== "all" && (
           <input type="hidden" name="tab" value={tab} />
         )}
+
+        {category !== "all" ? <input type="hidden" name="cat" value={category} /> : null}
+        {activityCity ? <input type="hidden" name="activityCity" value={activityCity} /> : null}
       </form>
 
-      {open && history.length > 0 && (
-  <div className="search-history">
-    {history.map((item) => (
-      <button
-        key={item}
-        type="button"
-        className="search-history-item"
-        onClick={() => {
-          setQuery(item);
-          setOpen(false);
-        }}
-      >
-        <span>{item}</span>
-      </button>
-    ))}
+      {open ? (
+        <div className="search-history">
+          {history.length > 0 ? (
+            <>
+              {history.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className="search-history-item"
+                  onClick={() => {
+                    saveSearch(item);
+                    setQuery(item);
+                    setOpen(false);
+                    router.push(buildSearchHref(item));
+                  }}
+                >
+                  <span>{item}</span>
+                </button>
+              ))}
 
-    <button
-      type="button"
-      className="search-history-clear"
-      onClick={() => {
-        localStorage.removeItem("search-history");
-        setHistory([]);
-        setOpen(false);
-      }}
-    >
-      🗑 Obriši istoriju
-    </button>
-  </div>
-)}
+              <button
+                type="button"
+                className="search-history-clear"
+                onClick={() => {
+                  localStorage.removeItem("search-history");
+                  setHistory([]);
+                }}
+              >
+                🗑 Obriši istoriju
+              </button>
+            </>
+          ) : (
+            <div className="search-history-empty">
+              <strong>Nema istorije pretrage</strong>
+              <small>Prva pretraga koju uradiš pojaviće se ovde.</small>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,128 +1,42 @@
 import Link from "next/link";
 import PostComposer from "./components/PostComposer";
-import NotificationCenter from "./components/NotificationCenter";
 import PostInteractions from "./components/PostInteractions";
 import PollWidget from "./components/PollWidget";
 import FooterScrollBehavior from "./components/FooterScrollBehavior";
-import ProfileNavMenu from "./components/ProfileNavMenu";
 import ZoomableProfileImage from "./components/ZoomableProfileImage";
+import BottomStatsFooter from "./components/home/BottomStatsFooter";
+import CategoryFilterBar from "./components/home/CategoryFilterBar";
+import ExploreMoreSection from "./components/home/ExploreMoreSection";
+import FeedPagination from "./components/home/FeedPagination";
+import FeatureGrid from "./components/home/FeatureGrid";
+import FeedTabs from "./components/home/FeedTabs";
+import HomeHeader from "./components/home/HomeHeader";
+import LeftSidebar from "./components/home/LeftSidebar";
+import { categoryFilters } from "./components/home/constants";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getActivityCities, getCurrentUser, getFeedPosts, getMarketPriceHighlights, getPartners, getPlatformStats, getProperties, getSidebarBanners, getWeekendActivities } from "@/lib/db";
+import { getActivityCities, getCurrentUser, getFeedPosts, getMarketPriceHighlights, getPartners, getPlatformStats, getPostsByUser, getProperties, getSidebarBanners, getWeekendActivities } from "@/lib/db";
 import { formatDeltaValue, formatPriceDin, getProductIcon } from "@/lib/market";
 import avatarImg from "../public/avatars/avatar.png";
-import SearchBox from "./components/SearchBox";
-import Icon, { type IconName } from "./components/Icon";
+import CollapsibleForm from "./components/CollapsibleForm";
+import Icon from "./components/Icon";
+import { getWeatherSnapshotForLocation } from "@/lib/weather";
 
 
 type FeedTab = "all" | "following" | "latest" | "popular" | "nearby" | "admin";
 const POSTS_PER_PAGE = 16;
+type SidebarScope = "local" | "regional" | "all";
+type CategoryFilterValue = (typeof categoryFilters)[number]["value"];
 
 type PollData = {
   question: string;
   options: string[];
 };
 
-type NavGroup = {
-  label?: string;
-  items: { icon: IconName; label: string; href: string; badge?: string }[];
-};
-
-const navGroups: NavGroup[] = [
-  {
-    items: [
-      { icon: "home", label: "Početna", href: "/" },
-      { icon: "bot", label: "AI Savetnik", href: "/ai-asistent", badge: "Novo" },
-      { icon: "plants", label: "Bolesti biljaka", href: "/bolesti-biljaka" },
-      { icon: "tips", label: "Vodič za početnike", href: "/iskustva-i-saveti" },
-    ],
-  },
-  {
-    label: "POLJOPRIVREDA",
-    items: [
-      { icon: "market", label: "Cene na pijaci", href: "/cene-na-pijaci" },
-      { icon: "funds", label: "Subvencije i konkursi", href: "/subvencije" },
-      { icon: "weather", label: "Vremenska prognoza", href: "/vremenska-prognoza" },
-    ],
-  },
-  {
-    label: "ŽIVOT NA SELU",
-    items: [
-      { icon: "partners", label: "Kuće na selu", href: "/kuce-na-selu" },
-      { icon: "tag", label: "Zemljište", href: "/kuce-na-selu?category=ZEMLJISTE" },
-      { icon: "events", label: "Događaji i manifestacije", href: "/dogadjaji" },
-    ],
-  },
-  {
-    label: "OSTALO",
-    items: [
-      { icon: "ads", label: "Oglasi", href: "/oprema-i-oglasi" },
-      { icon: "market", label: "Mehanizacija", href: "/oprema-i-oglasi" },
-    ],
-  },
-];
-
-const categoryFilters = [
-  { label: "Sve", value: "all" },
-  { label: "Biljna proizvodnja", value: "BILJNA_PROIZVODNJA" },
-  { label: "Voćarstvo", value: "VOCARSTVO" },
-  { label: "Povrćarstvo", value: "POVRCARSTVO" },
-  { label: "Stočarstvo", value: "STOCARSTVO" },
-  { label: "Život na selu", value: "ZIVOT_NA_SELU" },
-];
-
-const navItems = [
-  { icon: "home" as IconName, label: "Pocetna", href: "/" },
-  { icon: "bot" as IconName, label: "AI Asistent", href: "/ai-asistent" },
-  { icon: "tips" as IconName, label: "Iskustva i saveti", href: "/iskustva-i-saveti" },
-  { icon: "market" as IconName, label: "Cene na pijaci", href: "/cene-na-pijaci" },
-  { icon: "funds" as IconName, label: "Subvencije i konkursi", href: "/subvencije" },
-  { icon: "weather" as IconName, label: "Vremenska prognoza", href: "/vremenska-prognoza" },
-  { icon: "plants" as IconName, label: "Bolesti biljaka", href: "/bolesti-biljaka" },
-  { icon: "ads" as IconName, label: "Oprema i oglasi", href: "/oprema-i-oglasi" },
-  { icon: "events" as IconName, label: "Dogadjaji", href: "/dogadjaji" },
-  { icon: "partners" as IconName, label: "Prijatelji sajta", href: "/prijatelji-sajta" },
-];
-
-const featureCards = [
-  {
-    icon: "bot" as IconName,
-    title: "AI Asistent",
-    text: "Postavi pitanje i dobij strucan odgovor odmah.",
-    action: "Pitaj AI",
-    tone: "green",
-    href: "/ai-asistent",
-  },
-  {
-    icon: "market" as IconName,
-    title: "Cene na pijaci",
-    text: "Proveri najnovije cene voca, povrca i stoke.",
-    action: "Vidi cene",
-    tone: "gold",
-    href: "/cene-na-pijaci",
-  },
-  {
-    icon: "funds" as IconName,
-    title: "Subvencije",
-    text: "Pronadji aktuelne konkurse i uslove za subvencije.",
-    action: "Pogledaj",
-    tone: "blue",
-    href: "/subvencije",
-  },
-  {
-    icon: "weather" as IconName,
-    title: "Vreme",
-    text: "Proveri vremensku prognozu za svoj kraj.",
-    action: "Vidi prognozu",
-    tone: "sky",
-    href: "/vremenska-prognoza",
-  },
-];
-
 
 
 async function getPageData(
-  searchParamsPromise?: Promise<{ q?: string | string[]; tab?: string | string[]; page?: string | string[]; activityCity?: string | string[] }>,
+  searchParamsPromise?: Promise<{ q?: string | string[]; tab?: string | string[]; page?: string | string[]; activityCity?: string | string[]; cat?: string | string[]; scope?: string | string[] }>,
 ) {
   const searchParams = await searchParamsPromise;
   const cookieStore = await cookies();
@@ -133,22 +47,64 @@ async function getPageData(
 
   const activityCityParam = searchParams?.activityCity;
   const activityCity = (Array.isArray(activityCityParam) ? activityCityParam[0] : activityCityParam || "").trim();
+  const scopeParam = searchParams?.scope;
+  const sidebarScopeRaw = (Array.isArray(scopeParam) ? scopeParam[0] : scopeParam || "local").toLowerCase();
+  const sidebarScope: SidebarScope = sidebarScopeRaw === "regional" || sidebarScopeRaw === "all" ? sidebarScopeRaw : "local";
+  const hasActivityCityParam = activityCityParam !== undefined;
+  const activeActivityCity = hasActivityCityParam ? activityCity : profile.location || "";
+  const propertyLocation = (profile.location || "").trim();
 
-  const [posts, marketPrices, stats, banners, weekendActivities, activityCities, properties, partners] = await Promise.all([
+  const [posts, marketPrices, stats, banners, activityCities, partners, weatherSnapshot, userPosts] = await Promise.all([
     getFeedPosts(),
-    getMarketPriceHighlights(5),
+      getMarketPriceHighlights(5, profile.location || undefined),
     getPlatformStats(),
     getSidebarBanners(true),
-    getWeekendActivities(3, activityCity || undefined),
     getActivityCities(),
-    getProperties({ limit: 3, activeOnly: true }),
     getPartners(),
+    getWeatherSnapshotForLocation(profile.location || ""),
+    getPostsByUser(profile.id),
   ]);
+
+  const propertyScopeOrder: SidebarScope[] =
+    sidebarScope === "local"
+      ? ["local", "regional", "all"]
+      : sidebarScope === "regional"
+        ? ["regional", "all"]
+        : ["all"];
+
+  let properties: Awaited<ReturnType<typeof getProperties>> = [];
+  let resolvedPropertyScope: SidebarScope = sidebarScope;
+
+  for (const currentScope of propertyScopeOrder) {
+    const currentProperties = await getProperties({
+      limit: 3,
+      activeOnly: true,
+      location: propertyLocation || undefined,
+      locationScope: currentScope,
+    });
+
+    if (currentProperties.length) {
+      properties = currentProperties;
+      resolvedPropertyScope = currentScope;
+      break;
+    }
+
+    properties = currentProperties;
+    resolvedPropertyScope = currentScope;
+  }
+
+  const localWeekendActivities = await getWeekendActivities(3, activeActivityCity || undefined);
+  const weekendActivities = localWeekendActivities.length || !activeActivityCity
+    ? localWeekendActivities
+    : await getWeekendActivities(3);
+  const weekendActivitiesUsedFallback = Boolean(activeActivityCity && !localWeekendActivities.length && weekendActivities.length);
 
   const queryParam = searchParams?.q;
   const tabParam = searchParams?.tab;
   const pageParam = searchParams?.page;
+  const catParam = searchParams?.cat;
   const query = (Array.isArray(queryParam) ? queryParam[0] : queryParam || "").trim();
+  const catRaw = (Array.isArray(catParam) ? catParam[0] : catParam || "all").trim().toUpperCase();
   const tabRaw = (Array.isArray(tabParam) ? tabParam[0] : tabParam || "all").toLowerCase();
   const pageRaw = Array.isArray(pageParam) ? pageParam[0] : pageParam || "1";
   const parsedPage = Number.parseInt(pageRaw, 10);
@@ -156,6 +112,10 @@ async function getPageData(
     tabRaw === "following" || tabRaw === "latest" || tabRaw === "popular" || tabRaw === "nearby" || tabRaw === "admin"
       ? (tabRaw as FeedTab)
       : "all";
+  const allowedCategories = new Set(categoryFilters.map((item) => item.value));
+  const category: CategoryFilterValue = allowedCategories.has(catRaw as CategoryFilterValue)
+    ? (catRaw as CategoryFilterValue)
+    : "all";
 
   const q = query.toLowerCase();
   const searchedPosts = q
@@ -204,13 +164,18 @@ async function getPageData(
     return searchedPosts;
   })();
 
-  const totalPosts = filteredPosts.length;
+  const categoryFilteredPosts = category === "all"
+    ? filteredPosts
+    : filteredPosts.filter((post) => (post.category || "").toUpperCase() === category);
+
+  const totalPosts = categoryFilteredPosts.length;
   const totalPages = Math.max(1, Math.ceil(totalPosts / POSTS_PER_PAGE));
   const currentPage = Number.isFinite(parsedPage) && parsedPage > 0
     ? Math.min(parsedPage, totalPages)
     : 1;
   const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
-  const pagedPosts = filteredPosts.slice(startIndex, startIndex + POSTS_PER_PAGE);
+  const pagedPosts = categoryFilteredPosts.slice(startIndex, startIndex + POSTS_PER_PAGE);
+  const isFirstTimeUser = userPosts.length === 0;
 
   return {
     profile,
@@ -222,22 +187,47 @@ async function getPageData(
     activityCity,
     stats,
     query,
+    category,
     tab,
     currentPage,
     totalPages,
     totalPosts,
     properties,
     partners,
+    activeActivityCity,
+    sidebarScope,
+    resolvedPropertyScope,
+    weekendActivitiesUsedFallback,
+    weatherSnapshot,
+    isFirstTimeUser,
   };
 }
 
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string | string[]; tab?: string | string[]; page?: string | string[]; activityCity?: string | string[] }>;
+  searchParams: Promise<{ q?: string | string[]; tab?: string | string[]; page?: string | string[]; activityCity?: string | string[]; cat?: string | string[] }>;
 }) {
-  const { profile, posts, marketPrices, banners, weekendActivities, activityCities, activityCity, stats, query, tab, currentPage, totalPages, totalPosts, properties, partners } = await getPageData(searchParams);
+  const { profile, posts, marketPrices, banners, weekendActivities, activityCities, activityCity, stats, query, category, tab, currentPage, totalPages, totalPosts, properties, partners, activeActivityCity, sidebarScope, resolvedPropertyScope, weekendActivitiesUsedFallback, weatherSnapshot, isFirstTimeUser } = await getPageData(searchParams);
   const userAvatar = profile?.avatarUrl || avatarImg.src;
+
+  function buildSidebarHref(next: { scope?: SidebarScope; activityCity?: string }) {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (tab !== "all") params.set("tab", tab);
+    if (category !== "all") params.set("cat", category);
+    if (currentPage > 1) params.set("page", String(currentPage));
+    if (next.activityCity !== undefined) {
+      params.set("activityCity", next.activityCity);
+    } else if (activityCity) {
+      params.set("activityCity", activityCity);
+    }
+    if (next.scope && next.scope !== "local") {
+      params.set("scope", next.scope);
+    }
+    const qs = params.toString();
+    return qs ? `/?${qs}` : "/";
+  }
 
   function feedHref(nextTab: FeedTab) {
     const params = new URLSearchParams();
@@ -247,20 +237,11 @@ export default async function Page({
     if (nextTab !== "all") {
       params.set("tab", nextTab);
     }
-    const qs = params.toString();
-    return qs ? `/?${qs}` : "/";
-  }
-
-  function pageHref(nextPage: number) {
-    const params = new URLSearchParams();
-    if (query) {
-      params.set("q", query);
+    if (category !== "all") {
+      params.set("cat", category);
     }
-    if (tab !== "all") {
-      params.set("tab", tab);
-    }
-    if (nextPage > 1) {
-      params.set("page", String(nextPage));
+    if (activityCity) {
+      params.set("activityCity", activityCity);
     }
     const qs = params.toString();
     return qs ? `/?${qs}` : "/";
@@ -316,116 +297,87 @@ export default async function Page({
     if (value === "DISEASE") {
       return { label: "Bolesti", className: "category-disease" };
     }
+    if (value === "VOCARSTVO") {
+      return { label: "Voćarstvo", className: "category-subsidy" };
+    }
+    if (value === "POVRCARSTVO") {
+      return { label: "Povrćarstvo", className: "category-question" };
+    }
+    if (value === "STOCARSTVO") {
+      return { label: "Stočarstvo", className: "category-market" };
+    }
+    if (value === "BILJNA_PROIZVODNJA") {
+      return { label: "Biljna proizvodnja", className: "category-general" };
+    }
+    if (value === "ZIVOT_NA_SELU") {
+      return { label: "Život na selu", className: "category-disease" };
+    }
     return { label: "Opste", className: "category-general" };
   }
 
   return (
     <div className="social-shell">
-      <header className="app-header">
-        <Link className="logo" href="/">
-          <span className="logo-mark" aria-hidden>
-            <Icon name="plants" />
-          </span>
-          <span className="logo-text">
-            <span>AgroAI</span>
-            <small className="logo-subtitle">Zavičaj</small>
-          </span>
-        </Link>
+      <HomeHeader
+        query={query}
+        tab={tab}
+        category={category}
+        activityCity={activityCity}
+        weatherSnapshot={weatherSnapshot}
+        profile={profile}
+        userAvatar={userAvatar}
+      />
 
-
- <SearchBox
-  defaultValue={query}
-  tab={tab}
-/>
-        <div className="header-actions">
-          <Link className="btn-new-post" href="/#new-post">
-            <span>+</span> Novi post
-          </Link>
-          <Link className="icon-button" href="/ai-asistent" aria-label="AI poruke">
-            <Icon name="chat" />
-          </Link>
-          <NotificationCenter />
-          <ProfileNavMenu
-            name={profile?.name || "Korisnik"}
-            location={profile?.location || "Srbija"}
-            avatarUrl={userAvatar} 
-            role={profile.role}
-          />
-        </div>
-      </header>
-
-      <aside className="social-sidebar">
-        <nav className="social-nav">
-          {navGroups.map((group, gi) => (
-            <div className="nav-group" key={gi}>
-              {group.label ? <span className="nav-group-label">{group.label}</span> : null}
-              {group.items.map((item) => (
-                <Link
-                  className={`social-nav-item ${item.href === "/" && gi === 0 ? "active" : ""}`}
-                  href={item.href}
-                  key={item.label}
-                >
-                  <span aria-hidden><Icon name={item.icon} /></span>
-                  {item.label}
-                  {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
-                </Link>
-              ))}
-            </div>
-          ))}
-        </nav>
-
-        <section className="premium-card">
-          <div className="premium-icon">👑</div>
-          <h3>Premium članstvo</h3>
-          <p>Otključaj napredne AI savete, detaljne analize i još mnogo toga.</p>
-          <Link className="premium-button" href="/ai-asistent">Nadogradi sada</Link>
-        </section>
-
-        <section className="version-card">
-          <strong>AgroAI v2.0</strong>
-          <span>AI saveti i analiza biljaka</span>
-        </section>
-      </aside>
+      <LeftSidebar />
 
       <main className="feed-main">
-        <section className="feature-grid">
-          {featureCards.map((card) => (
-            <article className={`feature-card ${card.tone}`} key={card.title}>
-              <div className="feature-icon" aria-hidden>
-                <Icon name={card.icon} />
-              </div>
+        
+        {isFirstTimeUser ? (
+          <section className="panel quick-start-panel">
+            <div className="panel-heading">
               <div>
-                <h3>{card.title}</h3>
-                <p>{card.text}</p>
-                <Link href={card.href}>{card.action} -&gt;</Link>
+                <div className="eyebrow">Dobrodošli</div>
+                <h2>Kreni od 3 brza koraka</h2>
               </div>
-            </article>
-          ))}
+              <p className="muted">Platforma je spremna, samo dodaj prve informacije i biće ti mnogo korisnija.</p>
+            </div>
+            <div className="quick-start-grid">
+              <Link className="quick-start-card" href="/#new-post">
+                <strong>1. Napiši prvu objavu</strong>
+                <small>Podeli iskustvo ili pitanje da krene interakcija.</small>
+              </Link>
+              <Link className="quick-start-card" href="/cene-na-pijaci#price-form">
+                <strong>2. Dodaj cenu iz svog grada</strong>
+                <small>Odmah dobijaš korisniji lokalni prikaz tržišta.</small>
+              </Link>
+              <Link className="quick-start-card" href="/dogadjaji#new-activity">
+                <strong>3. Upiši lokalni događaj</strong>
+                <small>Poveži zajednicu kroz rokove i aktivnosti.</small>
+              </Link>
+            </div>
+          </section>
+        ) : null}
+
+
+        <FeatureGrid />
+
+        <section className="feed-control-panel panel">
+          <div className="panel-heading feed-control-heading">
+            <div>
+              <div className="eyebrow">Filteri</div>
+              <h2>Suzi pregled bez gubljenja konteksta</h2>
+            </div>
+            <p className="muted">Tabovi menjaju tok sadržaja, a kategorije su za precizno filtriranje objava.</p>
+          </div>
+
+          <FeedTabs tab={tab} query={query} category={category} activityCity={activityCity} />
+
+          <CategoryFilterBar category={category} query={query} tab={tab} activityCity={activityCity} />
         </section>
 
-        <PostComposer userAvatar={userAvatar} id="new-post" />
-
-        <nav className="tabs">
-          <Link className={tab === "all" ? "active" : ""} href={feedHref("all")}>
-            Svi postovi
-          </Link>
-          <Link className={tab === "following" ? "active" : ""} href={feedHref("following")}>Pratim</Link>
-          <Link className={tab === "nearby" ? "active" : ""} href={feedHref("nearby")}>Moja okolina</Link>
-          <Link className={tab === "admin" ? "active" : ""} href={feedHref("admin")}>Stručno</Link>
-          <Link className={tab === "latest" ? "active" : ""} href={feedHref("latest")}>Najnovije</Link>
-          <Link className={tab === "popular" ? "active" : ""} href={feedHref("popular")}>Popularno</Link>
-        </nav>
-
-        <div className="category-filter-bar">
-          {categoryFilters.map((f) => (
-            <Link
-              key={f.value}
-              href={`/?${f.value !== "all" ? `cat=${f.value}` : ""}`}
-              className="category-filter-chip"
-            >
-              {f.label}
-            </Link>
-          ))}
+        <div className="composer-shell">
+          <CollapsibleForm id="new-post" summary={isFirstTimeUser ? "Napravi prvu objavu" : "Dodaj novi post"} defaultOpen={isFirstTimeUser}>
+            <PostComposer userAvatar={userAvatar} />
+          </CollapsibleForm>
         </div>
 
         <section className="post-list">
@@ -478,6 +430,10 @@ export default async function Page({
                   initialComments={visibleComments.map((comment) => ({
                     id: comment.id,
                     content: comment.content,
+                    createdAt: comment.createdAt?.toISOString?.() || String(comment.createdAt),
+                    likesCount: 0,
+                    likedByMe: false,
+                    replies: [],
                   }))}
                 />
               </div>
@@ -503,34 +459,15 @@ export default async function Page({
           )}
         </section>
 
-        {totalPages > 1 ? (
-          <nav className="feed-pagination" aria-label="Paginacija postova">
-            <p className="muted">
-              Strana {currentPage} od {totalPages} · Ukupno {totalPosts} postova
-            </p>
-            <div className="feed-pagination-actions">
-              <Link
-                className={`button secondary ${currentPage <= 1 ? "disabled" : ""}`}
-                href={pageHref(Math.max(1, currentPage - 1))}
-                aria-disabled={currentPage <= 1}
-                tabIndex={currentPage <= 1 ? -1 : undefined}
-              >
-                Prethodna
-              </Link>
-
-              <span className="pagination-page">{currentPage}</span>
-
-              <Link
-                className={`button secondary ${currentPage >= totalPages ? "disabled" : ""}`}
-                href={pageHref(Math.min(totalPages, currentPage + 1))}
-                aria-disabled={currentPage >= totalPages}
-                tabIndex={currentPage >= totalPages ? -1 : undefined}
-              >
-                Sledeca
-              </Link>
-            </div>
-          </nav>
-        ) : null}
+        <FeedPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalPosts={totalPosts}
+          query={query}
+          tab={tab}
+          category={category}
+          activityCity={activityCity}
+        />
       </main>
 
       <aside className="social-rightbar">
@@ -538,36 +475,80 @@ export default async function Page({
           <div className="panel-heading">
             <h3>Cene na pijaci</h3>
           </div>
-          <div className="price-list">
-            {marketPrices.map((price) => (
-              <div className="price-row" key={price.id}>
-                <span className="crop-icon">{getProductIcon(price.product?.name)}</span>
-                <span>
-                  <strong>
-                    {price.product?.name} ({price.unit?.toLowerCase()})
-                  </strong>
-                  <small>{price.market?.name}</small>
-                </span>
-                <span className="price-value">
-                  <strong>{formatPriceDin(price.price.toString())}</strong>
-                  <small className={price.delta > 0 ? "up" : price.delta < 0 ? "down" : ""}>
-                    {formatDeltaValue(price.delta)}
-                  </small>
-                </span>
+          {marketPrices.length ? (
+            <div className="price-list">
+              {marketPrices.slice(0, 3).map((price) => (
+                <div className="price-row" key={price.id}>
+                  <span className="crop-icon">{getProductIcon(price.product?.name)}</span>
+                  <span>
+                    <strong>
+                      {price.product?.name} ({price.unit?.toLowerCase()})
+                    </strong>
+                    <small>{price.market?.name}</small>
+                  </span>
+                  <span className="price-value">
+                    <strong>{formatPriceDin(price.price.toString())}</strong>
+                    <small className={price.delta > 0 ? "up" : price.delta < 0 ? "down" : ""}>
+                      {formatDeltaValue(price.delta)}
+                    </small>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-result slim">
+              <strong>Nema dodatih cena u tvojoj okolini.</strong>
+              <p className="muted">Probaj širi pregled tržišta ili dodaj prvu cenu za svoj grad.</p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+                <Link className="button secondary" href="/cene-na-pijaci?scope=all&location=">
+                  Prikaži sve cene
+                </Link>
+                <Link className="button secondary" href="/cene-na-pijaci#price-form">
+                  Dodaj cenu
+                </Link>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
           <Link className="see-all-link" href="/cene-na-pijaci">Vidi cene →</Link>
         </section>
 
-        {properties.length ? (
-          <section className="side-panel">
-            <div className="panel-heading">
+        <section className="side-panel">
+          <div className="panel-heading">
+            <div>
               <h3>Kuće na selu</h3>
-              <Link href="/kuce-na-selu">Pogledaj sve</Link>
+              <p className="muted" style={{ margin: 0 }}>
+                Prikaz za {profile.location || "tvoju lokaciju"}
+              </p>
             </div>
+            <Link href="/kuce-na-selu">Pogledaj sve</Link>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            {[
+              { scope: "local" as const, label: "25 km" },
+              { scope: "regional" as const, label: "50-100 km" },
+              { scope: "all" as const, label: "200 km" },
+            ].map((item) => (
+              <Link
+                key={item.scope}
+                href={buildSidebarHref({ scope: item.scope })}
+                style={{
+                  background: sidebarScope === item.scope ? "#0f7a34" : "#edf8ef",
+                  border: "1px solid #dce7dd",
+                  borderRadius: 999,
+                  color: sidebarScope === item.scope ? "white" : "#0f7a34",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  padding: "6px 12px",
+                  textDecoration: "none",
+                }}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+          {properties.length ? (
             <div className="property-list">
-              {properties.map((prop) => (
+              {properties.slice(0, 2).map((prop) => (
                 <Link className="property-card" href={`/kuce-na-selu`} key={prop.id}>
                   {prop.imageUrl ? (
                     <div className="property-card-img">
@@ -593,8 +574,23 @@ export default async function Page({
                 </Link>
               ))}
             </div>
-          </section>
-        ) : null}
+          ) : (
+            <div className="empty-result slim">
+              <strong>Nema kuća u ovom opsegu.</strong>
+              <p className="muted">
+                Pokušali smo {resolvedPropertyScope === "local" ? "25 km" : resolvedPropertyScope === "regional" ? "50-100 km" : "širu pretragu"}. Možeš da proširiš opseg ili otvoriš sve oglase.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Link className="button secondary" href={buildSidebarHref({ scope: "regional" })}>
+                  Šira okolina
+                </Link>
+                <Link className="button secondary" href={buildSidebarHref({ scope: "all" })}>
+                  Cela Srbija
+                </Link>
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="side-panel weekend-activities-panel">
           <div className="panel-heading">
@@ -605,10 +601,11 @@ export default async function Page({
           <form className="weekend-filter-form" method="get" action="/">
             {query ? <input type="hidden" name="q" value={query} /> : null}
             {tab !== "all" ? <input type="hidden" name="tab" value={tab} /> : null}
+            {category !== "all" ? <input type="hidden" name="cat" value={category} /> : null}
             {currentPage > 1 ? <input type="hidden" name="page" value={String(currentPage)} /> : null}
             <label>
               <span>Grad</span>
-              <select name="activityCity" defaultValue={activityCity}>
+              <select name="activityCity" defaultValue={activeActivityCity}>
                 <option value="">Svi gradovi</option>
                 {activityCities.map((city) => (
                   <option key={city} value={city}>{city}</option>
@@ -619,7 +616,7 @@ export default async function Page({
           </form>
 
           <div className="weekend-activity-list">
-            {weekendActivities.length ? weekendActivities.map((activity) => (
+            {weekendActivities.length ? weekendActivities.slice(0, 2).map((activity) => (
               <article className="weekend-activity-item weekend-activity-item--compact" key={activity.id}>
                 {activity.imageUrl ? (
                   <img className="weekend-activity-thumb" src={activity.imageUrl} alt={activity.title} />
@@ -634,12 +631,29 @@ export default async function Page({
                   {activity.category ? <span className="activity-tag">{activity.category}</span> : null}
                 </div>
               </article>
-            )) : <p className="muted">Nema aktivnosti ovog vikenda.</p>}
+            )) : (
+              <div className="empty-result slim">
+                <strong>Nema aktivnosti za ovu lokaciju.</strong>
+                <p className="muted">
+                  {weekendActivitiesUsedFallback
+                    ? "Prikazali smo sve dostupne gradove jer u tvojoj okolini trenutno nema događaja."
+                    : "Promeni grad ili vidi sve događaje da pronađeš druge termine."}
+                </p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Link className="button secondary" href={buildSidebarHref({ activityCity: "" })}>
+                    Svi gradovi
+                  </Link>
+                  <Link className="button secondary" href={buildSidebarHref({ activityCity: profile.location || "" })}>
+                    Moja lokacija
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
           <Link className="see-all-link" href="/dogadjaji">Vidi sve događaje →</Link>
         </section>
 
-        {banners.length ? banners.map((banner) => (
+        {banners.length ? banners.slice(0, 1).map((banner) => (
           banner.variant === "HERO" ? (
             <section
               className="dynamic-hero-banner"
@@ -668,96 +682,56 @@ export default async function Page({
               )}
             </section>
           )
-        )) : null}
-
-        {partners.length ? (
-          <section className="side-panel">
-            <div className="panel-heading">
-              <h3>Prijatelji sajta</h3>
+        )) : (
+          <section className="side-panel sponsor-card dynamic-card-banner">
+            <div>
+              <h3>Nema istaknutih banera</h3>
+              <p className="muted">Za ovu lokaciju trenutno nema aktivnih kampanja ili obaveštenja.</p>
             </div>
-            <div className="partners-logo-grid">
-              {partners.slice(0, 8).map((partner) => (
-                partner.website ? (
-                  <a className="partner-logo-item" href={partner.website} target="_blank" rel="noopener noreferrer" key={partner.id} title={partner.name}>
-                    {partner.logoUrl ? (
-                      <img src={partner.logoUrl} alt={partner.name} />
-                    ) : (
-                      <span className="partner-logo-fallback">{partner.name.slice(0, 4)}</span>
-                    )}
-                  </a>
-                ) : (
-                  <div className="partner-logo-item" key={partner.id} title={partner.name}>
-                    {partner.logoUrl ? (
-                      <img src={partner.logoUrl} alt={partner.name} />
-                    ) : (
-                      <span className="partner-logo-fallback">{partner.name.slice(0, 4)}</span>
-                    )}
-                  </div>
-                )
-              ))}
-            </div>
-            <Link className="see-all-link" href="/prijatelji-sajta">Vidi sve prijatelje →</Link>
           </section>
-        ) : null}
+        )}
+
+        <section className="side-panel">
+          <div className="panel-heading">
+            <h3>Prijatelji sajta</h3>
+          </div>
+          {partners.length ? (
+            <>
+              <div className="partners-logo-grid">
+                {partners.slice(0, 4).map((partner) => (
+                  partner.website ? (
+                    <a className="partner-logo-item" href={partner.website} target="_blank" rel="noopener noreferrer" key={partner.id} title={partner.name}>
+                      {partner.logoUrl ? (
+                        <img src={partner.logoUrl} alt={partner.name} />
+                      ) : (
+                        <span className="partner-logo-fallback">{partner.name.slice(0, 4)}</span>
+                      )}
+                    </a>
+                  ) : (
+                    <div className="partner-logo-item" key={partner.id} title={partner.name}>
+                      {partner.logoUrl ? (
+                        <img src={partner.logoUrl} alt={partner.name} />
+                      ) : (
+                        <span className="partner-logo-fallback">{partner.name.slice(0, 4)}</span>
+                      )}
+                    </div>
+                  )
+                ))}
+              </div>
+              <Link className="see-all-link" href="/prijatelji-sajta">Vidi sve prijatelje →</Link>
+            </>
+          ) : (
+            <div className="empty-result slim">
+              <strong>Nema partnera za prikaz.</strong>
+              <p className="muted">Ovaj deo se popunjava kada postoji aktivna saradnja ili lokalni sponzor.</p>
+            </div>
+          )}
+        </section>
       </aside>
 
-      <section className="explore-more-section">
-        <h3>Istraži više</h3>
-        <div className="explore-more-grid">
-          {[
-            { icon: "plants" as IconName, label: "Vodič za sadnju", sub: "Kada i šta saditi" },
-            { icon: "tips" as IconName, label: "Bolesti biljaka", sub: "Prepoznavanje i zaštita" },
-            { icon: "ads" as IconName, label: "Agro oglasi", sub: "Kupovina / Prodaja" },
-            { icon: "market" as IconName, label: "Mehanizacija", sub: "Traktori i oprema" },
-            { icon: "tag" as IconName, label: "Zemljište", sub: "Kupovina / Najam" },
-            { icon: "share" as IconName, label: "Turizam na selu", sub: "Otkrij lepotu Srbije" },
-          ].map((item) => (
-            <Link className="explore-more-card" href="/" key={item.label}>
-              <span className="explore-more-icon"><Icon name={item.icon} /></span>
-              <strong>{item.label}</strong>
-              <small>{item.sub}</small>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <ExploreMoreSection />
 
-      <footer className="bottom-stats" id="feed-bottom-stats">
-        <div>
-          <span>
-            <Icon name="stats-users" />
-          </span>
-          <strong>{stats.usersCount.toLocaleString("sr-RS")}</strong>
-          <small>Aktivnih korisnika</small>
-        </div>
-        <div>
-          <span>
-            <Icon name="stats-posts" />
-          </span>
-          <strong>{stats.postsCount.toLocaleString("sr-RS")}</strong>
-          <small>Podeljenih iskustava</small>
-        </div>
-        <div>
-          <span>
-            <Icon name="stats-price" />
-          </span>
-          <strong>{stats.pricesUpdatedToday.toLocaleString("sr-RS")}</strong>
-          <small>Cena azurirano danas</small>
-        </div>
-        <div>
-          <span>
-            <Icon name="stats-chat" />
-          </span>
-          <strong>{stats.activeDiscussions.toLocaleString("sr-RS")}</strong>
-          <small>Aktivnih diskusija</small>
-        </div>
-        <div>
-          <span>
-            <Icon name="stats-ai" />
-          </span>
-          <strong>AI Asistent</strong>
-          <small>Dostupan 24/7</small>
-        </div>
-      </footer>
+      <BottomStatsFooter stats={stats} />
 
       <FooterScrollBehavior targetId="feed-bottom-stats" />
     </div>

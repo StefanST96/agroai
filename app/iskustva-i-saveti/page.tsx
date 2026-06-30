@@ -13,7 +13,16 @@ async function getTipsData() {
   const posts = await getFeedPosts();
   const tipsPosts = posts.filter((post) => {
     const c = post.category?.toString().toLowerCase();
-    return c === "general" || c === "question" || c === "disease";
+    return (
+      c === "general" ||
+      c === "question" ||
+      c === "disease" ||
+      c === "vocarstvo" ||
+      c === "povrcarstvo" ||
+      c === "stocarstvo" ||
+      c === "biljna_proizvodnja" ||
+      c === "zivot_na_selu"
+    );
   });
 
   return { profile, tipsPosts };
@@ -37,7 +46,7 @@ export default async function TipsPage() {
 
       <section className="panel" style={{ marginBottom: 16 }}>
         <h2>Pregled objava</h2>
-        <p className="muted">Filtrirano iz feed-a po kategorijama GENERAL, QUESTION i DISEASE.</p>
+        <p className="muted">Filtrirano iz feed-a po savetodavnim kategorijama i iskustvima sa terena.</p>
       </section>
 
       <section className="timeline">
@@ -61,7 +70,9 @@ export default async function TipsPage() {
           ))
         ) : (
           <section className="panel">
-            <p>Nema objava za prikaz.</p>
+            <strong>Trenutno nema objava za prikaz.</strong>
+            <p className="muted">Dodajte novu objavu na početnoj stranici ili promenite kategoriju u feed-u.</p>
+            <Link className="button secondary" href="/#new-post">Dodaj novo iskustvo</Link>
           </section>
         )}
       </section>

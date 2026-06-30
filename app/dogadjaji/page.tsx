@@ -3,22 +3,25 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import ActivityComposer from "@/app/components/ActivityComposer";
 import ActivityOwnerActions from "@/app/components/ActivityOwnerActions";
+import CollapsibleForm from "@/app/components/CollapsibleForm";
 import { getActivityCities, getCurrentUser, getPastActivities, getWeekendActivities } from "@/lib/db";
 
-async function getEventsData(city?: string) {
+async function getEventsData(city?: string, useDefaultCity = true) {
   const cookieStore = await cookies();
   const profile = await getCurrentUser(cookieStore);
   if (!profile) {
     redirect("/login");
   }
 
+  const activeCity = useDefaultCity ? city || profile.location || "" : city || "";
+
   const [events, pastEvents, cities] = await Promise.all([
-    getWeekendActivities(30, city),
-    getPastActivities(30, city),
+    getWeekendActivities(30, activeCity || undefined),
+    getPastActivities(30, activeCity || undefined),
     getActivityCities(),
   ]);
 
-  return { profile, events, pastEvents, cities };
+  return { profile, events, pastEvents, cities, activeCity };
 }
 
 export default async function EventsPage({
@@ -28,8 +31,9 @@ export default async function EventsPage({
 }) {
   const params = await searchParams;
   const cityParam = params?.city;
+  const hasCityParam = cityParam !== undefined;
   const city = (Array.isArray(cityParam) ? cityParam[0] : cityParam || "").trim();
-  const { profile, events, pastEvents, cities } = await getEventsData(city || undefined);
+  const { profile, events, pastEvents, cities, activeCity } = await getEventsData(city, !hasCityParam);
 
   return (
     <main className="main">
@@ -44,13 +48,15 @@ export default async function EventsPage({
         </Link>
       </div>
 
-      <ActivityComposer />
+      <CollapsibleForm id="new-activity" summary="Dodaj aktivnost" style={{ marginBottom: 14 }}>
+        <ActivityComposer />
+      </CollapsibleForm>
 
       <section className="panel activity-filter-panel">
         <form className="activity-filter-form" method="get" action="/dogadjaji">
           <label className="field">
             <span>Filtriraj po gradu</span>
-            <select name="city" defaultValue={city}>
+            <select name="city" defaultValue={activeCity}>
               <option value="">Svi gradovi</option>
               {cities.map((item) => (
                 <option key={item} value={item}>{item}</option>

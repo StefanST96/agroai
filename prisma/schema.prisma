@@ -23,6 +23,8 @@ model User {
   updatedAt       DateTime           @updatedAt
   aiConversations AiConversation[]
   comments        Comment[]
+  commentLikes    CommentLike[]
+  commentReplies  CommentReply[]
   diseaseAnalyses DiseaseAnalysis[]
   likes           Like[]
   priceReports    MarketPrice[]
@@ -98,8 +100,36 @@ model Comment {
   updatedAt DateTime @updatedAt
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  likes     CommentLike[]
+  replies   CommentReply[]
 
   @@index([postId])
+  @@index([authorId])
+}
+
+model CommentLike {
+  id        Int      @id @default(autoincrement())
+  commentId Int
+  authorId  Int
+  createdAt DateTime @default(now())
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, authorId])
+  @@index([authorId])
+}
+
+model CommentReply {
+  id        Int      @id @default(autoincrement())
+  commentId Int
+  authorId  Int
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([commentId])
   @@index([authorId])
 }
 
@@ -171,11 +201,15 @@ model Subsidy {
   opensAt     DateTime?
   closesAt    DateTime?
   link        String?
+  imageUrl    String?
+  imageAssetId Int?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  imageAsset  MediaAsset?   @relation(fields: [imageAssetId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([closesAt])
+  @@index([imageAssetId])
 }
 
 model AiConversation {
@@ -233,6 +267,7 @@ model MediaAsset {
   user        User?      @relation(fields: [userId], references: [id])
   postImages  Post[]     @relation("PostImage")
   postVideos  Post[]     @relation("PostVideo")
+  subsidies   Subsidy[]
   plantImages PlantImageUpload[]
   banners     SidebarBanner[]
   weekendActivityImages WeekendActivity[] @relation("WeekendActivityImage")
